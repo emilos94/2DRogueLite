@@ -1,0 +1,7 @@
+#include "game_internal.h"
+#include "entity.c"
+#include "game_internal.c"
+#include "systems.c"
+#include "assets.c"
+#include "player.c"
+#include "game.c"

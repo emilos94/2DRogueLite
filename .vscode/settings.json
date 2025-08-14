@@ -1,0 +1,41 @@
+{
+    "files.associations": {
+        "format": "c",
+        "xlocale": "c",
+        "xstring": "c",
+        "xutility": "c",
+        "window.h": "c",
+        "render.h": "c",
+        "render_internal.h": "c",
+        "file_handling.h": "c",
+        "game.h": "c",
+        "limits": "c",
+        "list.h": "c",
+        "dirent.h": "c",
+        "type_traits": "c",
+        "compare": "cpp",
+        "typeinfo": "cpp",
+        "variant": "c",
+        "text_encoding": "c",
+        "functional": "c",
+        "engine_internal.h": "c",
+        "string_view": "c",
+        "stb_image.h": "c",
+        "systems.h": "c",
+        "assets.h": "c",
+        "engine.h": "c",
+        "game_internal.h": "c",
+        "cstdint": "c"
+    },
+    "launches": {
+        "DebugLaunch": "Debug (gdb) Launch"
+    },
+    "makefile.makePath": "mingw32-make",
+    "makefile.launchConfigurations": [
+        {
+            "cwd": "c:\\Users\\emilr\\GameDev\\CraftingSurvivor",
+            "binaryPath": "c:\\Users\\emilr\\GameDev\\CraftingSurvivor\\main",
+            "binaryArgs": []
+        }
+    ]
+}
