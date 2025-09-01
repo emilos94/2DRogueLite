@@ -201,6 +201,15 @@ void ShaderUniformMat4(ShaderProgram* shader, const char* name, f32* values)
     GLCall(glUniformMatrix4fv(location, 1, GL_FALSE, values));
 }
 
+void ShaderUniformVec2(ShaderProgram* shader, const char* name, f32 x, f32 y)
+{
+    assert(shader);
+    assert(name);
+
+    u32 location = ShaderProgramGetUniformLocation(shader, name);
+    GLCall(glUniform2f(location, x, y));
+}
+
 void ShaderUniformInts(ShaderProgram* shader, const char* name, s32* values, u32 count)
 {
 	GLuint location = ShaderProgramGetUniformLocation(shader, name);

@@ -1,7 +1,8 @@
 #include "game_internal.h"
 #include "systems.h"
 #include "assets.h"
-#include "player.h"
+#include "entities/player.h"
+#include "rooms.h"
 
 void GameInit()
 {
@@ -14,77 +15,103 @@ void GameInit()
     
     pthread_t backgroundThread;
     s32 result = pthread_create(&backgroundThread, NULL, LoadResourcesBackground, (void*)(&gameState));
-
+    
     gameState.IsRunning = true;
     gameState.GrassTexture = GetTexture("grass.png");
     gameState.WallsTexture = GetTexture("walls.png");
 
-    // :player
-    Entity* player = EntityCreate(EntityFlag_Moving | EntityFlag_Solid | EntityFlag_Animation);
-    player->Texture = GetTexture("player.png");
-    player->Position = (Vec2){100, 100};
-    player->BoundingBox = (BoundingBox){ .Offset = {5, 0}, .Size = {6, 6} };
-    player->Animation.Data = GetAnimation(AnimationId_PlayerIdle);
-    player->Animation.Timer = 0;
-    player->AnimationId = AnimationId_PlayerIdle;
-    player->WeaponAnchor = (Vec2) { 11, 7 };
-    player->WeaponSwipe = 0.67;
-    player->WeaponExtraRotation = 0;
-    player->SwingSpeed = 0.2;
-    gameState.PlayerId = player->Id;
-
-    Entity* slime = EntityCreate(EntityFlag_Moving | EntityFlag_Solid | EntityFlag_Render);
-    slime->Texture = GetTexture("slime.png");
-    slime->Position = (Vec2){200, 50};
-    slime->BoundingBox = (BoundingBox){ .Offset = {5, 0}, .Size = {6, 6} };
-
-    Entity* leftWall = EntityCreate(EntityFlag_Solid);
-    leftWall->Position = (Vec2){0, 0};
-    leftWall->BoundingBox = (BoundingBox) { .Offset = {0, 0}, .Size = {8, RESOLUTION_HEIGHT } };
-
-    Entity* rightWall = EntityCreate(EntityFlag_Solid);
-    rightWall->Position = (Vec2){RESOLUTION_WIDTH - 8, 0};
-    rightWall->BoundingBox = (BoundingBox) { .Offset = {0, 0}, .Size = {8, RESOLUTION_HEIGHT } };
-
-    Entity* topWall = EntityCreate(EntityFlag_Solid);
-    topWall->Position = (Vec2){0, RESOLUTION_HEIGHT - 16};
-    topWall->BoundingBox = (BoundingBox) { .Offset = {0, 0}, .Size = {RESOLUTION_WIDTH, 16 } };
+    // Register event listeners
+    RegisterEntityEventListener(RoomsOnEntityEvent);
     
-    Entity* bottomWall = EntityCreate(EntityFlag_Solid);
-    bottomWall->Position = (Vec2){0, 0};
-    bottomWall->BoundingBox = (BoundingBox) { .Offset = {0, 0}, .Size = {RESOLUTION_WIDTH, 8 } };
+    // init room:
+    Room* initialRoom = CreateNewRoom();
+    gameState.CurrentRoomId = initialRoom->Id;
+    RoomLoadTiles(initialRoom, "res/rooms/test_map01.png");
+
+    InitNewGame();
 }
 
 void GameUpdate(float delta)
 {
-    gameState.ElapsedTime += delta;
-
-    Entity* player = EntityById(gameState.PlayerId);
-
+    if (gameState.GameMode == GameMode_GameOver)
+    {
+        if (KeyPressed(GLFW_KEY_ENTER))
+        {
+            InitNewGame();
+        }
+    }
+    else 
+    {
+        gameState.ElapsedTime += delta;
+        
 #ifdef DEBUG
-    if (KeyDown(GLFW_KEY_LEFT_SHIFT) && KeyPressed(GLFW_KEY_C))
-    {
-        debugState.RenderCollisionShapes = !debugState.RenderCollisionShapes;
-    }
+        if (KeyDown(GLFW_KEY_LEFT_SHIFT) && KeyPressed(GLFW_KEY_C))
+        {
+            debugState.RenderCollisionShapes = !debugState.RenderCollisionShapes;
+        }
 #endif
+        
+        if (KeyPressed(GLFW_KEY_ESCAPE))
+        {
+            gameState.IsRunning = false;
+        }
+        
+        Entity* player = EntityById(gameState.PlayerId);
+        if (player)
+        {
+            PlayerInput(&gameState, player, delta);
+            PlayerUpdate(&gameState, player, delta);
+        }
 
-    if (KeyPressed(GLFW_KEY_ESCAPE))
-    {
-        gameState.IsRunning = false;
+        CollisionSystem(delta);
+        MovementSystem(delta);
+        AnimationSystem(delta);
+        TimeToLiveSystem(delta);
+
+        EntitiesUpdate(delta);
+
+        ResolveEntityFrameEvents();
+        EntityDestroySystem(delta);
     }
-
-    PlayerInput(&gameState, player, delta);
-    PlayerUpdate(&gameState, player, delta);
-
-    MovementSystem(delta);
 }
 
 void GameRender(float delta)
 {   
-    QuadDrawCmd* grass = DrawTexture((Vec2){0, 0}, gameState.GrassTexture);
-    grass->ZLayer = 0;
-    QuadDrawCmd* walls = DrawTexture((Vec2){0, 0}, gameState.WallsTexture);
-    walls->ZLayer = 1;
+    Entity* player = EntityById(gameState.PlayerId);
+    
+    // ui
+    // player health bar
+    if (player)
+    {
+        gameState.CameraTargetPosition = Vec2Sub(player->Position, (Vec2){RESOLUTION_WIDTH / 2, RESOLUTION_HEIGHT / 2});
+        Vec2 cameraMinPos = (Vec2) { .x = 0, .y = 0 };
+        Vec2 cameraMaxPos =  (Vec2) { .x = ROOM_MAX_TILE_WIDTH * TILE_PIXEL_SIZE - RESOLUTION_WIDTH, .y = ROOM_MAX_TILE_HEIGHT * TILE_PIXEL_SIZE - RESOLUTION_HEIGHT };
+        gameState.CameraTargetPosition = Vec2Clamp(
+            gameState.CameraTargetPosition, cameraMinPos, cameraMaxPos
+        );
+        gameState.CameraPosition = Vec2Lerp(gameState.CameraPosition, gameState.CameraTargetPosition, 10.0 * delta);
+        RenderSetCameraPos(gameState.CameraPosition);
+
+        u32 width = 64;
+        u32 height = 10;
+        u32 padding = 2;
+        QuadDrawCmd* healthBarBack = DrawQuad(
+            (Vec2) { padding, RESOLUTION_HEIGHT - (height + padding) },
+            (Vec2) { width, height},
+            (Vec3) {1.0, 0.2, 0.2}
+        );
+        healthBarBack->ZLayer = -2;
+        
+        QuadDrawCmd* healthBarFront= DrawQuad(
+            (Vec2) { padding, RESOLUTION_HEIGHT - (height + padding) },
+            (Vec2) { width * (player->Health) / 5, height},
+            (Vec3) { 0.2, 1.0, 0.2}
+        );
+        healthBarFront->ZLayer = -1;
+    }
+    
+    Room* currentRoom = RoomById(gameState.CurrentRoomId);
+    DrawRoomTiles(currentRoom);
 
     Entity* entities = GetEntities();       
     for (s32 i = 0; i < ENTITY_CAPACITY; i++)
@@ -95,24 +122,50 @@ void GameRender(float delta)
             continue;
         }
         
+        QuadDrawCmd* cmd = 0;
         if (entity->Flags & EntityFlag_Animation)
         {
-            QuadDrawCmd* cmd = DrawAnimation(entity->Position, &entity->Animation);
-            cmd->FlipTextureX = entity->FlipTextureX;
-            cmd->ZLayer = 2;
+            cmd = DrawAnimation(entity->Position, &entity->Animation);
         }
         else if (entity->Flags & EntityFlag_Render)
         {
-            QuadDrawCmd* cmd = DrawTexture(entity->Position, entity->Texture);
+            cmd = DrawTexture(entity->Position, entity->Texture);
+        }
+        
+        if (cmd)
+        {
             cmd->FlipTextureX = entity->FlipTextureX;
             cmd->ZLayer = 2;
+            cmd->Rotation = entity->Rotation;
+            cmd->Size = Vec2Mul(cmd->Size, entity->RenderScale);
+
+            if (entity->FlashTimer > 0)
+            {
+                cmd->Color = entity->FlashColor;
+                cmd->ColorOverwrite = entity->FlashStrength;
+            }
+
+            cmd->Position.y += entity->RenderOffsetY;
+
+            if (entity->Flags & EntityFlag_IsEffect)
+            {
+                cmd->ZLayer = 1;
+            }
+
+            if (entity->Flags & EntityFlag_RenderShadow)
+            {
+                QuadDrawCmd* shadow = DrawTexture(entity->Position, GetTexture("shadow_small.png"));
+                shadow->Position.y -= 3;
+                shadow->ZLayer = 1;
+                shadow->Alpha = 0.5;
+            }
         }
 
         if (entity->Id.Index == gameState.PlayerId.Index)
         {
-            QuadDrawCmd* cmd = DrawTexture(entity->WeaponAnchor, GetTexture("sword.png"));
-            cmd->Rotation = entity->WeaponRotation;
-            cmd->ZLayer = 2;
+            QuadDrawCmd* drawCmd = DrawTexture(entity->WeaponAnchor, GetTexture("sword.png"));
+            drawCmd->Rotation = entity->WeaponRotation;
+            drawCmd->ZLayer = 2;
         }
 
 #ifdef DEBUG

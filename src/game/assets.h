@@ -14,6 +14,9 @@ enum AnimationId
     AnimationId_None,
     AnimationId_PlayerIdle,
     AnimationId_PlayerRun,
+    AnimationId_EffectSlash,
+    AnimationId_EffectPoof,
+    AnimationId_EffectGroundImpact,
     AnimationId_COUNT
 };
 typedef u32 AnimationId;

@@ -82,6 +82,7 @@ boolean RenderInit(u32 quadCapacity)
     "layout (location=6) in float rotation;\n"
     "layout (location=7) in vec2 centerPoint;\n"
     "uniform mat4 projection;\n"
+    "uniform vec2 cameraPosition;\n"
     "out vec3 vColor;\n"
     "out vec2 vUv;\n"
     "flat out int vTextureIndex;\n"
@@ -96,6 +97,7 @@ boolean RenderInit(u32 quadCapacity)
         "float rotationRadians = radians(rotation);\n"
         "vec2 pointAtOrigin = pos - centerPoint;\n"
         "vec2 rotatedPoint = vec2(pointAtOrigin.x * cos(rotationRadians) - pointAtOrigin.y * sin(rotationRadians), pointAtOrigin.x * sin(rotationRadians) + pointAtOrigin.y * cos(rotationRadians)) + centerPoint;\n"
+        "rotatedPoint -= cameraPosition;\n"
         "gl_Position = projection * vec4(rotatedPoint.x, rotatedPoint.y, 0.0, 1.0);\n"
     "}\n";
     
@@ -137,6 +139,11 @@ void RenderSetProjection(Mat4 mat)
 {
     Mat4 columnMajorMat = Mat4ColumnMajor(mat);
     ShaderUniformMat4(&renderState.Shader, "projection", columnMajorMat.m);
+}
+
+void RenderSetCameraPos(Vec2 position)
+{
+    ShaderUniformVec2(&renderState.Shader, "cameraPosition", position.x, position.y);
 }
 
 void RenderDestroy()
@@ -276,18 +283,43 @@ void RenderEndFrame()
     ShaderProgramUnbind();
 }
 
-void UpdateAnimation(Animation* animation, f32 delta)
+void AnimationUpdate(Animation* animation, f32 delta)
 {
     assert(animation);
-    AnimationData* data = animation->Data;
+    if (!animation->Playing)
+    {
+        animation->JustFinished = false;
+        return;
+    }
 
     animation->Timer += delta;
-    u32 animationFrameCount = (data->FrameIndexEnd - data->FrameIndexStart) + 1;
-    f32 duration = data->SecondsPerFrame * (f32)animationFrameCount;
-    if (animation->Timer >= duration)
+    if (animation->Timer >= AnimationDuration(animation))
     {
         animation->Timer = 0;
+        animation->JustFinished = true;
+
+        if (!animation->ShouldLoop)
+        {
+            animation->Playing = false;
+        }
     }
+}
+
+f32 AnimationDuration(Animation* animation)
+{
+    assert(animation);
+
+    f32 result = animation->Data->SecondsPerFrame * (f32)(animation->Data->FrameIndexEnd - animation->Data->FrameIndexStart + 1);
+    return result;
+}
+
+u32 AnimationFrameWidth(Animation* animation)
+{
+    assert(animation);
+
+    u32 frameCount = (animation->Data->FrameIndexEnd - animation->Data->FrameIndexStart + 1);
+    u32 result = animation->Data->Texture->Width / frameCount;
+    return result;
 }
 
 QuadDrawCmd* DrawAnimation(Vec2 bottomLeft, Animation* animation)
@@ -331,6 +363,7 @@ QuadDrawCmd* DrawQuad(Vec2 bottomLeft, Vec2 size, Vec3 color)
     cmd->ColorOverwrite = 1.0;
     cmd->Alpha = 1.0;
     cmd->Rotation = 0.0;
+    cmd->FlipTextureX = false;
 
     renderState.QuadCount++;
 
@@ -380,6 +413,7 @@ QuadDrawCmd* DrawTexture(Vec2 bottomLeft, Texture* texture)
     cmd->ColorOverwrite = 0.0;
     cmd->Alpha = 1.0;
     cmd->Rotation = 0.0;
+    cmd->FlipTextureX = false;
 
     renderState.QuadCount++;
 

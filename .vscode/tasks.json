@@ -1,6 +1,15 @@
 {
     "tasks": [
         {
+            "label": "Build all",
+            "type": "shell",
+            "command": ".\\build.bat",
+            "group": {
+                "isDefault": true,
+                "kind": "build"
+            }
+        },
+        {
             "type": "cppbuild",
             "label": "C/C++: gcc.exe build active file",
             "command": "gcc",

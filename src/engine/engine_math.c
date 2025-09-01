@@ -23,6 +23,56 @@ f32 Lerp(f32 a, f32 b, f32 x)
     return result;
 }
 
+boolean F32Between(f32 value, f32 min, f32 max)
+{
+    boolean result = value >= min && value <= max;
+    return result;
+}
+
+f32 F32Clamp(f32 a, f32 min, f32 max)
+{
+    if (a < min)
+    {
+        return min;
+    }
+    if (a > max)
+    {
+        return max;
+    }
+
+    return a;
+}
+
+// Rand
+f32 RandF32Ratio(void)
+{
+    f32 result = (f32)rand() / (f32)RAND_MAX;
+    return result;
+}
+
+f32 RandF32Between(f32 min, f32 max)
+{
+    f32 result = min + (max - min) * RandF32Ratio();
+    return result;
+}
+
+Vec2 RandVec2In(Vec2 min, Vec2 max)
+{
+    Vec2 result = (Vec2){
+        .x = RandF32Between(min.x, max.x),
+        .y = RandF32Between(min.y, max.y),
+    };
+
+    return result;
+}
+
+// Easings
+f32 EaseOutQuint(f32 a)
+{
+    f32 result = 1.0 - powf(1.0 - a, 5.0);
+    return result;
+}
+
 // Vec2
 Vec2 Vec2Normalize(Vec2 a)
 {
@@ -66,6 +116,15 @@ Vec2 Vec2Sub(Vec2 a, Vec2 b)
     return result;
 }
 
+Vec2 Vec2Mul(Vec2 a, Vec2 b)
+{
+    Vec2 result = {
+        .x = a.x * b.x,
+        .y = a.y * b.y
+    };
+    return result;
+}
+
 Vec2 Vec2Mulf(Vec2 a, f32 scalar)
 {
     Vec2 result = {
@@ -85,6 +144,39 @@ Vec2 Vec2Direction(Vec2 a, Vec2 b)
 {
     Vec2 result = Vec2Sub(b, a);
     result = Vec2Normalize(result);
+    return result;
+}
+
+f32 Vec2Distance(Vec2 a, Vec2 b)
+{
+    f32 deltaX = b.x - a.x;
+    f32 deltaY = b.y - a.y;
+    f32 result = sqrtf(deltaX * deltaX + deltaY * deltaY);
+    return result;
+}
+
+f32 Vec2Dot(Vec2 a, Vec2 b)
+{
+    f32 result = a.x * b.x + a.y * b.y;
+    return result;
+}
+
+Vec2 Vec2Lerp(Vec2 a, Vec2 b, f32 progress)
+{
+    Vec2 result = {
+        .x = Lerp(a.x, b.x, progress),
+        .y = Lerp(a.y, b.y, progress)
+    };
+
+    return result;
+}
+
+Vec2 Vec2Clamp(Vec2 a, Vec2 min, Vec2 max)
+{
+    Vec2 result = {
+        .x = F32Clamp(a.x, min.x, max.x),
+        .y = F32Clamp(a.y, min.y, max.y)
+    };
     return result;
 }
 

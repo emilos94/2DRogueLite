@@ -173,7 +173,10 @@ void SoundSetLoop(SoundSource* sound, boolean loop)
         return;
     }
 
-    assert(sound);
-    assert(sound->Valid);
+    if (!sound || !sound->Valid)
+    {
+        return;
+    }
+
     AL_CALL(alSourcei(sound->Source, AL_LOOPING, loop));
 }

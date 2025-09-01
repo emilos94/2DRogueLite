@@ -78,6 +78,30 @@ void SetupAnimationData(void)
         .SecondsPerFrame = 0.15,
         .Texture = GetTexture("player.png")
     };
+    
+    assetState.AnimationData[AnimationId_EffectSlash] = (AnimationData) {
+        .TextureFrameCount = 4,
+        .FrameIndexStart = 0,
+        .FrameIndexEnd = 3,
+        .SecondsPerFrame = 0.1,
+        .Texture = GetTexture("slash_effect_32.png")
+    };
+    
+    assetState.AnimationData[AnimationId_EffectPoof] = (AnimationData) {
+        .TextureFrameCount = 4,
+        .FrameIndexStart = 0,
+        .FrameIndexEnd = 3,
+        .SecondsPerFrame = 0.1,
+        .Texture = GetTexture("poof_effect.png")
+    };
+        
+    assetState.AnimationData[AnimationId_EffectGroundImpact] = (AnimationData) {
+        .TextureFrameCount = 5,
+        .FrameIndexStart = 0,
+        .FrameIndexEnd = 4,
+        .SecondsPerFrame = 0.1,
+        .Texture = GetTexture("ground_impact_effect.png")
+    };
 }
 
 void AssetsLoad(void)

@@ -25,7 +25,12 @@
         "assets.h": "c",
         "engine.h": "c",
         "game_internal.h": "c",
-        "cstdint": "c"
+        "cstdint": "c",
+        "entity_blueprints.h": "c",
+        "game_util.h": "c",
+        "entity.h": "c",
+        "effects.h": "c",
+        "rooms.h": "c"
     },
     "launches": {
         "DebugLaunch": "Debug (gdb) Launch"

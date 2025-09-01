@@ -1,4 +1,5 @@
-#include "game_internal.h"
+#include "../game_internal.h"
+#include "effects.h"
 
 #ifndef PLAYER_CONTROLLER_H
 #define PLAYER_CONTROLLER_H
