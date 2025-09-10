@@ -8,9 +8,9 @@ typedef struct RoomState
 } RoomState;
 RoomState _RoomState = {};
 
-Room* RoomById(u32 id)
+Room* RoomById(s32 id)
 {
-    assert(id < ROOMS_CAPACITY);
+    assert(id < ROOMS_CAPACITY && id > -1);
 
     return _RoomState.Rooms + id;
 }
@@ -20,8 +20,14 @@ Room* CreateNewRoom(void)
     assert(_RoomState.RoomCount < ROOMS_CAPACITY - 1);
 
     Room* room = &_RoomState.Rooms[_RoomState.RoomCount++];
+    memset(room, 0, sizeof(Room));
+    
     room->IsActive = true;
     room->Id = _RoomState.RoomCount - 1;
+    room->ConnectedRoomIds[0] = -1;
+    room->ConnectedRoomIds[1] = -1;
+    room->ConnectedRoomIds[2] = -1;
+    room->ConnectedRoomIds[3] = -1;
 
     return room;
 }
@@ -48,14 +54,10 @@ void _RoomsOnEntityDestroyed(Entity* entity)
             {
                 printf("Cleared room!\n");
 
-                for (s32 i = 0; i < room->DoorCount; i++)
+                for (s32 i = 0; i < room->GateCount; i++)
                 {
-                    EntityId doorId = room->Doors[i];
-                    Entity* door = EntityById(doorId);
-                    if (door)
-                    {
-                        door->Flags &= EntityFlag_Render;
-                    }
+                    EntityId gateId = room->Gates[i];
+                    EntityQueueDestroy(gateId);
                 }
             }
         }
@@ -77,7 +79,7 @@ void _RoomsOnEntityCreated(Entity* entity)
             continue;
         }
         
-        boolean inRoom = AABBCollision(room->Position, Vec2Add(room->Position, room->Size), entity->Position, entity->Size).Colliding;
+        boolean inRoom = AABBCollision(room->Position, Vec2Add(room->Position, room->Size), entity->Position, Vec2Add(entity->Position, entity->Size)).Colliding;
         if (inRoom)
         {
             room->EnemyAliveCount++;
@@ -124,14 +126,59 @@ TileType TileTypeFromPixel(u8 r, u8 g, u8 b)
 
 TileType RoomGetTileAt(Room* room, Vec2 pos)
 {
-    u32 x = F32Clamp(pos.x / TILE_PIXEL_SIZE, 0, ROOM_MAX_TILE_WIDTH * TILE_PIXEL_SIZE);
-    u32 y = F32Clamp(pos.y / TILE_PIXEL_SIZE, 0, ROOM_MAX_TILE_HEIGHT * TILE_PIXEL_SIZE);
+    u32 x = (u32)(pos.x / TILE_PIXEL_SIZE);
+    u32 y = (u32)(pos.y / TILE_PIXEL_SIZE);
 
-    s32 index = y * ROOM_MAX_TILE_WIDTH + x;
-    if(index >= ROOM_MAX_TILE_COUNT)
+    s32 index = y * room->TileCountX + x;
+    if(index >= room->TileCountX * room->TileCountY)
     {
         return TileType_None;
     }
 
     return room->Tiles[index];
+}
+
+u32 RoomIdFromDirection(Direction direction)
+{
+    switch (direction)
+    {
+    case Direction_West: return 0;
+    case Direction_East: return 1;
+    case Direction_South: return 2;
+    case Direction_North: return 3;
+    default: return 0; // note should crash perhaps ?
+    }
+}
+
+void ConnectRooms(Room* roomA, Room* roomB)
+{
+    assert(abs(roomA->MapX - roomB->MapX) <= 1 &&
+           abs(roomA->MapY - roomB->MapY) <= 1);
+
+    assert(roomA != roomB);
+
+    // room a to the left | a <-> b
+    if (roomA->MapX < roomB->MapX)
+    {
+        roomA->ConnectedRoomIds[RoomIdFromDirection(Direction_East)] = roomB->Id;
+        roomB->ConnectedRoomIds[RoomIdFromDirection(Direction_West)] = roomA->Id;
+    }
+    // room a to the right | b <-> a
+    else if (roomA->MapX > roomB->MapX)
+    {
+        roomA->ConnectedRoomIds[RoomIdFromDirection(Direction_West)] = roomB->Id;
+        roomB->ConnectedRoomIds[RoomIdFromDirection(Direction_East)] = roomA->Id;
+    }
+    // room a below
+    else if (roomA->MapY < roomB->MapY)
+    {
+        roomA->ConnectedRoomIds[RoomIdFromDirection(Direction_North)] = roomB->Id;
+        roomB->ConnectedRoomIds[RoomIdFromDirection(Direction_South)] = roomA->Id;
+    }
+    // room a above
+    else if (roomA->MapY > roomB->MapY)
+    {
+        roomA->ConnectedRoomIds[RoomIdFromDirection(Direction_South)] = roomB->Id;
+        roomB->ConnectedRoomIds[RoomIdFromDirection(Direction_North)] = roomA->Id;
+    }
 }

@@ -56,6 +56,12 @@ f32 RandF32Between(f32 min, f32 max)
     return result;
 }
 
+u32 RandU32Between(u32 min, u32 max)
+{
+    u32 result = min + (max - min) * RandF32Ratio();
+    return result;
+}
+
 Vec2 RandVec2In(Vec2 min, Vec2 max)
 {
     Vec2 result = (Vec2){
@@ -63,6 +69,14 @@ Vec2 RandVec2In(Vec2 min, Vec2 max)
         .y = RandF32Between(min.y, max.y),
     };
 
+    return result;
+}
+
+// Accepts percentage between 0 and 1 and checks if a random ratio is <= it
+boolean RandChance(f32 chance)
+{
+    f32 ratio = RandF32Ratio();
+    boolean result = ratio <= chance;
     return result;
 }
 

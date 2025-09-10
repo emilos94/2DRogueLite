@@ -67,10 +67,9 @@ EntityCollisionInfo EntityQueryCollision(Vec2 position, Vec2 size, EntityId toSk
     for (s32 i = 0; i < ENTITY_CAPACITY; i++)
     {
         Entity* entity = entityState.Entities + i;
-        if (!(entity->Flags & EntityFlag_Active)   || 
-            !(entity->Flags & EntityFlag_Solid)    || 
-            !(entity->Flags & EntityFlag_Collider) || 
-              entity->Id.Index == toSkip.Index)
+        if (!(entity->Flags & EntityFlag_Active) || 
+              entity->Id.Index == toSkip.Index   ||
+            !((entity->Flags & EntityFlag_Solid) || (entity->Flags & EntityFlag_Collider)))
         {
             continue;
         }
@@ -151,7 +150,7 @@ void EntityReceiveDamage(Entity* entity, Vec2 direction, f32 knockBackAmount, f3
 
     entity->RenderScale.x = 1.7;
     entity->RenderScale.y = 0.4;
-    EntityFlash(entity, (Vec3){1.0, 1.0, 1.0}, 0.5);
+    EntityFlash(entity, (Vec3){1.0, 1.0, 1.0}, 1);
     entity->KnockBackAmount = knockBackAmount;
     entity->KnockBackDirection = direction;
     entity->Health -= damage;

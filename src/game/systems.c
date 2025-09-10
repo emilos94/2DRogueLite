@@ -2,6 +2,7 @@
 
 void MovementSystem(f32 delta)
 {
+    Room* currentRoom = RoomById(gameState.CurrentRoomId);
     Entity* entities = GetEntities();
     for (s32 i = 0; i < ENTITY_CAPACITY; i++)
     {
@@ -11,20 +12,33 @@ void MovementSystem(f32 delta)
             continue;
         }
 
+        if (entity->RoomId != gameState.CurrentRoomId)
+        {
+            continue;
+        }
+
         Vec2 newPosition = Vec2Add(entity->Position, Vec2Mulf(entity->Velocity, delta));
         
         if (entity->Flags & EntityFlag_Solid)
         {
             EntityCollisionInfo collision = EntityQueryCollision(Vec2Add(newPosition, entity->BoundingBox.Offset), entity->BoundingBox.Size, entity->Id);
-            
+
             if (collision.CollisionInfo.Colliding) 
             {
-                newPosition = Vec2Add(newPosition, collision.CollisionInfo.SeperationVector);
+                Entity* collidingEntity = EntityById(collision.CollidingEntityId);
+                if (collidingEntity && collidingEntity->Flags & EntityFlag_Solid)
+                {
+                    newPosition = Vec2Add(newPosition, collision.CollisionInfo.SeperationVector);
+                }
             }
         }
-            
-        entity->Position = newPosition;
 
+        TileType tile = RoomGetTileAt(currentRoom, newPosition);
+        if (tile != TileType_Wall)
+        {
+            entity->Position = newPosition;
+        }
+            
         if (entity->Flags & EntityFlag_FlipXOnMove)
         {
             if (entity->FlipTextureX && entity->Velocity.x > 0)
@@ -49,6 +63,11 @@ void CollisionSystem(f32 delta)
         {
             continue;
         }
+        
+        if (entity->RoomId != gameState.CurrentRoomId)
+        {
+            continue;
+        }
 
         EntityCollisionInfo collision = EntityQueryCollision(Vec2Add(entity->Position, entity->BoundingBox.Offset), entity->BoundingBox.Size, entity->Id);
         if (collision.CollisionInfo.Colliding && entity->OnCollision)
@@ -65,6 +84,11 @@ void AnimationSystem(f32 delta)
     {
         Entity* entity = entities + i;
         if (!(entity->Flags & EntityFlag_Active) || !(entity->Flags & EntityFlag_Animation))
+        {
+            continue;
+        }
+        
+        if (entity->RoomId != gameState.CurrentRoomId)
         {
             continue;
         }

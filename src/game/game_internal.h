@@ -13,6 +13,8 @@
 #define RESOLUTION_HEIGHT 180
 #define RESOLUTION_VEC2_HALF ((Vec2) {RESOLUTION_WIDTH / 2, RESOLUTION_HEIGHT / 2})
 
+#define COLOR_WHITE ((Vec3){1,1,1})
+
 // :util
 Vec2 MousePosResolution(void);
 Vec2 RandomPositionInLevel(void);
@@ -25,6 +27,7 @@ Vec2 MousePosWorld(void);
 typedef struct DebugState
 {
     boolean RenderCollisionShapes;
+    boolean RenderMiniMap;
 } DebugState;
 DebugState debugState = {0};
 
@@ -37,13 +40,27 @@ enum GameMode
 };
 typedef u32 GameMode;
 
+enum ZLayer 
+{
+    ZLayer_Ground,
+    ZLayer_Tiles,
+    ZLayer_Entity,
+    ZLayer_UI0,
+    ZLayer_UI1
+};
+
+// :map
+typedef struct Map
+{
+    u32 RoomCountX, RoomCountY;
+    s32* RoomIds;
+    s32 StartingRoomId;
+} Map;
+
 typedef struct GameState 
 {
     Texture Texture;
     boolean IsRunning;
-
-    Texture* GrassTexture;
-    Texture* WallsTexture;
 
     EntityId PlayerId;
 
@@ -58,6 +75,8 @@ typedef struct GameState
 
     Vec2 CameraPosition;
     Vec2 CameraTargetPosition;
+
+    Map map;
 } GameState;
 GameState gameState = {};
 
@@ -68,14 +87,17 @@ void EntitiesUpdate(f32 delta);
 // entities :entity
 Entity* EntitySlimeCreate(Vec2 position);
 Entity* EntityGateCreate(Vec2 position);
-Entity* EntityDoorwayCreate(Vec2 position);
 
 // :room
 Room* GenerateNewRoom(void);
 void RoomLoadTiles(Room* destination, const char* path);
 void SpawnRoomEntities(Room* room);
 void DrawRoomTiles(Room* room);
-void SwitchToRoom(Entity* doorwayFrom, Room* room);
+void SwitchToRoom(Direction directionFrom, Room* room);
+
+// :map
+Map GenerateMap(u32 roomCountX, u32 roomCountY, u32 roomsToPlace);
+void AttemptRoomConnect(Map* map, Room* room, s32 mapX, s32 mapY);
 
 void InitNewGame(void);
 void GameOver(void);

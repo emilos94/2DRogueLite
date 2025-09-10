@@ -14,10 +14,17 @@ void* LoadResourcesBackground(void* arguments)
 void EntitiesUpdate(f32 delta)
 {
     Entity* entities = GetEntities(); 
+    Room* room = RoomById(gameState.CurrentRoomId);
+
     for (s32 i = 0; i < ENTITY_CAPACITY; i++)
     {
         Entity* entity = entities + i;
         if (!(entity->Flags & EntityFlag_Active))
+        {
+            continue;
+        }
+
+        if (entity->RoomId != gameState.CurrentRoomId)
         {
             continue;
         }
@@ -39,7 +46,12 @@ void EntitiesUpdate(f32 delta)
 
         if (entity->KnockBackAmount > 0)
         {
-            entity->Position = Vec2Add(entity->Position, Vec2Mulf(entity->KnockBackDirection, entity->KnockBackAmount));
+            entity->Position = Vec2Clamp(
+                Vec2Add(entity->Position, Vec2Mulf(entity->KnockBackDirection, entity->KnockBackAmount)),
+                V2(16, 16),
+                Vec2Sub(room->Size, V2(16, 16))
+            );
+
             entity->KnockBackAmount -= delta * 10;
             if (entity->KnockBackAmount < 0)
             {
@@ -74,6 +86,7 @@ void InitNewGame(void)
     player->Texture = GetTexture("player.png");
     player->Position = (Vec2){100, 100};
     player->BoundingBox = (BoundingBox){ .Offset = {5, 0}, .Size = {6, 6} };
+    player->Size = V2(6, 6);
     player->Animation.Data = GetAnimation(AnimationId_PlayerIdle);
     player->Animation.Timer = 0;
     player->AnimationId = AnimationId_PlayerIdle;
@@ -85,17 +98,16 @@ void InitNewGame(void)
     player->Health = 5;
     player->AttackCooldown = 0.5;
     player->AttackTimer = 0.0;
+    player->RoomId = gameState.CurrentRoomId;
 
     gameState.PlayerId = player->Id;
 
-    Vec2 position = RandomPositionInLevel();
-    EntitySlimeCreate(position);
-    
-    position = RandomPositionInLevel();
-    EntitySlimeCreate(position);
-
-    position = RandomPositionInLevel();
-    EntitySlimeCreate(position);
+    for (s32 i = 0; i < 5; i++)
+    {
+        Vec2 position = RandomPositionInLevel();
+        Entity* slime = EntitySlimeCreate(position);
+        slime->RoomId = gameState.CurrentRoomId;
+    }
 
     gameState.GameMode = GameMode_Playing;
 }
@@ -136,6 +148,8 @@ void SpawnCorpse(Entity* entity, f32 delta)
     corpse->KnockBackAmount = 3.5;
     corpse->KnockBackDirection = entity->KnockBackDirection;
     corpse->CustomCallback = DestroyWhenKnockbackIsDown;
+    corpse->RenderScale = V2(1.5, 0.7);
+    EntityFlash(corpse, COLOR_WHITE, 1.0);
     corpse->OnEntityDestroy = SpawnPoof;
 }
 
@@ -156,7 +170,10 @@ void SlimeCallback(Entity* slime, f32 delta)
 
             slime->JumpStartPos = slime->Position;
             slime->JumpTarget = RandomVec2InRange(slime->Position, 40);
-            while(slime->JumpTarget.x <= 8 || slime->JumpTarget.x >= RESOLUTION_WIDTH - 16 || slime->JumpTarget.y <= 8 || slime->JumpTarget.y >= RESOLUTION_HEIGHT - 16)
+
+            Room* currentRoom = RoomById(gameState.CurrentRoomId);
+
+            while(slime->JumpTarget.x <= 8 || slime->JumpTarget.x >= currentRoom->TileCountX * TILE_PIXEL_SIZE - 16 || slime->JumpTarget.y <= 8 || slime->JumpTarget.y >= currentRoom->TileCountY * TILE_PIXEL_SIZE - 16)
             {
                 slime->JumpTarget = RandomVec2InRange(slime->Position, 40);
             }
@@ -180,7 +197,8 @@ void SlimeCallback(Entity* slime, f32 delta)
             slime->RenderScale.y = 0.4;
             Vec2 centerPos = EntityCenterPos(slime);
             centerPos.y -= 5;
-            EffectCreateGroundImpact(centerPos);
+            Entity* groundImpact = EffectCreateGroundImpact(centerPos);
+            groundImpact->RoomId = slime->RoomId;
 
             f32 range = 20;
             Entity* result[10];
@@ -230,59 +248,6 @@ Entity* EntityGateCreate(Vec2 position)
     return door;
 }
 
-// :doorway
-void EntityDoorwayCollisionCallback(Entity* doorway, Entity* other)
-{
-    assert(doorway);
-    assert(other);
-
-    if (other->Kind != EntityKind_Player)
-    {
-        return;
-    }
-    
-    if (doorway->RoomSwitchData.ConnectedRoom == -1)
-    {
-        // Create new room
-        Room* newRoom = CreateNewRoom();
-
-        // Link room to door and appropriate doorways together
-        doorway->RoomSwitchData.ConnectedRoom = newRoom->Id;
-
-        // Link to appropriate doorway
-        EntityId doorwayIdToLink = newRoom->Doors[DirectionOpposite(doorway->RoomSwitchData.Placement)];
-        Entity* doorwayToLink = EntityById(doorwayIdToLink);
-        
-        assert(doorwayToLink);
-
-        doorway->RoomSwitchData.ConnectedDoorwayId = doorwayToLink->Id;
-        doorwayToLink->RoomSwitchData.ConnectedDoorwayId = doorway->Id;
-        doorwayToLink->RoomSwitchData.ConnectedRoom = gameState.CurrentRoomId;
-
-        SwitchToRoom(doorway, newRoom);
-    }
-    else
-    {
-        // Switch to connected room
-        Room* connectedRoom = RoomById(doorway->RoomSwitchData.ConnectedRoom);
-        assert(connectedRoom);
-
-        SwitchToRoom(doorway, connectedRoom);
-    }
-}
-
-Entity* EntityDoorwayCreate(Vec2 position)
-{
-    Entity* doorway = EntityCreate(EntityFlag_Render | EntityFlag_Collider);
-    doorway->Texture = GetTexture("doorway.png");
-    doorway->Position = position;
-    doorway->Size = (Vec2) { doorway->Texture->Width, doorway->Texture->Height };
-    doorway->BoundingBox.Size = doorway->Size;
-    doorway->OnCollision = EntityDoorwayCollisionCallback;
-    doorway->RoomSwitchData.ConnectedRoom = -1;
-    return doorway;
-}
-
 // :entity :end
 
 
@@ -291,32 +256,28 @@ void DrawRoomTiles(Room* room)
 {
     assert(room);
 
+    Texture* wallTexture = GetTexture("wall_tile.png");
+
     for (s32 y = room->TileCountY - 1; y >= 0; y--)
     for (s32 x = 0; x < room->TileCountX; x++)
     {
-        TileType tile = room->Tiles[room->TileCountX * 2 * y + x];
+        TileType tile = room->Tiles[room->TileCountX * y + x];
         switch (tile)
         {
-        case TileType_Grass:
-            DrawQuad(
-                (Vec2) {.x = x * TILE_PIXEL_SIZE, .y = y * TILE_PIXEL_SIZE },
-                (Vec2) { TILE_PIXEL_SIZE, TILE_PIXEL_SIZE },
-                (Vec3) { 0.2, 0.8, 0.4}
-            );
-        break;
         case TileType_Wall:
-            DrawQuad(
+            QuadDrawCmd* cmdWall = DrawTexture(
                 (Vec2) {.x = x * TILE_PIXEL_SIZE, .y = y * TILE_PIXEL_SIZE },
-                (Vec2) { TILE_PIXEL_SIZE, TILE_PIXEL_SIZE },
-                (Vec3) { 0.7, 0.4, 0.7}
+                wallTexture
             );
+            cmdWall->ZLayer = ZLayer_Tiles;
         break;
         case TileType_Door:
-            DrawQuad(
+            QuadDrawCmd* cmdDoor = DrawQuad(
                 (Vec2) {.x = x * TILE_PIXEL_SIZE, .y = y * TILE_PIXEL_SIZE },
                 (Vec2) { TILE_PIXEL_SIZE, TILE_PIXEL_SIZE },
                 (Vec3) { 0.7, 0.7, 0.7}
             );
+            cmdDoor->ZLayer = ZLayer_Tiles;
         break;
         default:
             break;
@@ -341,7 +302,6 @@ void SpawnRoomEntities(Room* room)
         {
             Vec2 position = (Vec2) { x * TILE_PIXEL_SIZE, y * TILE_PIXEL_SIZE };
             Entity* door = EntityGateCreate(position);
-            room->Doors[room->DoorCount++] = door->Id;
 
             Direction doorDirection = Direction_East;
             if (x == 0)
@@ -356,16 +316,12 @@ void SpawnRoomEntities(Room* room)
             {
                 doorDirection = Direction_North;
             }
-            
-            Entity* doorway = EntityGateCreate(position);
-            doorway->RoomSwitchData.Placement = doorDirection;
-            room->Doors[doorDirection] = doorway->Id;
         }
     }
 
 }
 
-void SwitchToRoom(Entity* doorwayFrom, Room* room)
+void SwitchToRoom(Direction directionFrom, Room* room)
 {
     // todo: add screen effect
     gameState.CurrentRoomId = room->Id;
@@ -373,14 +329,35 @@ void SwitchToRoom(Entity* doorwayFrom, Room* room)
     Entity* player = EntityById(gameState.PlayerId);
     assert(player);
 
-    if (doorwayFrom->DoorDirection == Direction_West)
+    if (!room->IsVisited)
     {
-        player->Position.x = doorwayFrom->Position.x + (TILE_PIXEL_SIZE + 5);
+        for (s32 i = 0; i < 5; i++)
+        {
+            Vec2 pos = RandomPositionInLevel();
+            Entity* slime = EntitySlimeCreate(pos);
+            slime->RoomId = room->Id;
+        }
+
+        room->IsVisited = true;
     }
-    else if (doorwayFrom->DoorDirection == Direction_East)
+
+    if (directionFrom == Direction_East)
     {
-        player->Position.x = doorwayFrom->Position.x - (TILE_PIXEL_SIZE + 5);
+        player->Position.x = room->TileCountX * TILE_PIXEL_SIZE - (TILE_PIXEL_SIZE * 2);
     }
+    else if (directionFrom == Direction_West)
+    {
+        player->Position.x = TILE_PIXEL_SIZE + 5;
+    }
+    else if (directionFrom == Direction_North)
+    {
+        player->Position.y = room->TileCountY * TILE_PIXEL_SIZE - (TILE_PIXEL_SIZE + 5);
+    }
+    else if (directionFrom == Direction_South)
+    {
+        player->Position.y = TILE_PIXEL_SIZE + 5;
+    }
+    player->RoomId = room->Id;
 }
 
 // :room :tiles :load
@@ -407,12 +384,12 @@ void RoomLoadTiles(Room* destination, const char* path)
         u8 green = data[index+1];
         u8 blue = data[index+2];
         TileType tileType = TileTypeFromPixel(red, green, blue);
-        destination->Tiles[y * width + x] = tileType;
+        destination->Tiles[y * destination->TileCountX + x] = tileType;
     }
 
     // read entity frame
     for (u32 y = 0; y < height; y++)
-    for (u32 x = destination->TileCountX - 1; x < width; x++)
+    for (u32 x = destination->TileCountX; x < width; x++)
     {
         u32 index = (y * width + x) * 4;
         u8 alpha = data[index+3];
@@ -427,10 +404,10 @@ void RoomLoadTiles(Room* destination, const char* path)
             if (tileType == TileType_Door)
             {
                 u32 doorWidth = 8;
-                Vec2 position = (Vec2) { x * TILE_PIXEL_SIZE - doorWidth, y * TILE_PIXEL_SIZE };
+                Vec2 position = (Vec2) { (x - destination->TileCountX) * TILE_PIXEL_SIZE - doorWidth, y * TILE_PIXEL_SIZE };
 
                 Direction doorDirection = Direction_East;
-                if (x == 0)
+                if (x == destination->TileCountX)
                 {
                     position.x += doorWidth * 2;
                     doorDirection = Direction_West;
@@ -444,11 +421,8 @@ void RoomLoadTiles(Room* destination, const char* path)
                     doorDirection = Direction_North;
                 }
 
-                Entity* gate = EntityGateCreate(position);              
-                
-                Entity* doorway = EntityDoorwayCreate(position);
-                doorway->RoomSwitchData.Placement = doorDirection;
-                destination->Doors[doorDirection] = doorway->Id;
+                Entity* gate = EntityGateCreate(position);
+                destination->Gates[destination->GateCount++] = gate->Id;          
             }
         }
     }
@@ -457,6 +431,92 @@ void RoomLoadTiles(Room* destination, const char* path)
     destination->Size = (Vec2) { destination->TileCountX * TILE_PIXEL_SIZE, destination->TileCountY * TILE_PIXEL_SIZE };
     destination->Position = (Vec2) { 0, 0 };
     stbi_image_free(data);
+}
+
+// :maps
+Map GenerateMap(u32 roomCountX, u32 roomCountY, u32 roomsToPlace)
+{
+    Map result = {
+        .RoomCountX = roomCountX,
+        .RoomCountY = roomCountY,
+        .RoomIds = malloc(sizeof(s32) * roomCountX * roomCountY),
+        .StartingRoomId = -1
+    };
+    
+    assert(result.RoomIds);
+    memset(result.RoomIds, -1, sizeof(s32) * roomCountX * roomCountY);
+
+    u32 roomQueue[32];
+    u32 roomQCount = 0;
+
+    // Queue room in center of map
+    Room* room = CreateNewRoom();
+    roomQueue[roomQCount++] = room->Id;
+    room->MapX = roomCountX / 2 - 1;
+    room->MapY = roomCountY / 2 - 1;
+    result.RoomIds[room->MapY * roomCountX + room->MapX] = room->Id;
+    result.StartingRoomId = room->Id;
+
+    u32 roomsPlaced = 0;
+    while(roomsPlaced < roomsToPlace)
+    {
+        for (s32 queueIndex = 0; queueIndex < roomQCount && roomsPlaced < roomsToPlace; queueIndex++)
+        {
+            u32 roomId = roomQueue[queueIndex];
+            Room* currentRoom = RoomById(roomId);
+            
+            u32 rand = RandU32Between(0, 3);
+            Vec2 direction = V2(0, 0);
+            switch (rand)
+            {
+            case 0:
+                direction.x = -1;
+                break;
+            case 1:
+                direction.y = -1;
+                break;
+            case 2:
+                direction.x = 1;
+                break;
+            case 3:
+                direction.y = 1;
+                break;
+            default:
+                break;
+            }
+
+            s32 roomX = currentRoom->MapX + direction.x;
+            s32 roomY = currentRoom->MapY + direction.y;
+
+            // Skip outside of grid
+            if (roomX < 0 || roomX >= roomCountX || roomY < 0 || roomY >= roomCountY)
+            {
+                continue;
+            }
+
+            u32 index = roomY * roomCountX + roomX;
+            s32 roomCandidateId = result.RoomIds[index];
+            
+            // Skip rooms which are already set
+            if (roomCandidateId == currentRoom->Id || roomCandidateId > -1) 
+            {
+                continue;
+            }
+
+            if (roomsPlaced < roomsToPlace)
+            {
+                Room* newRoom = CreateNewRoom();
+                newRoom->MapX = roomX;
+                newRoom->MapY = roomY;
+                result.RoomIds[index] = newRoom->Id;
+                roomQueue[roomQCount++] = newRoom->Id;
+                ConnectRooms(currentRoom, newRoom);
+                roomsPlaced++;
+            }
+        }
+    }
+
+    return result;
 }
 
 // :util
@@ -469,9 +529,11 @@ Vec2 MousePosWorld(void)
 
 Vec2 RandomPositionInLevel(void)
 {
+    Room* room = RoomById(gameState.CurrentRoomId);
+
     Vec2 result = RandVec2In(
-        (Vec2){ 8, 8 },
-        (Vec2){ RESOLUTION_WIDTH - 8, RESOLUTION_HEIGHT - 16 }
+        (Vec2){ 16, 16 },
+        (Vec2){ room->TileCountX * TILE_PIXEL_SIZE - 16, room->TileCountY * TILE_PIXEL_SIZE - 16 }
     );
 
     return result;

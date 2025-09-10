@@ -130,4 +130,43 @@ void PlayerUpdate(GameState* gameState, Entity* player, f32 delta)
         weaponOffset = (Vec2) {.x = 7, .y = 0 };
     }
     player->WeaponAnchor = Vec2Add(player->WeaponAnchor, weaponOffset);
+
+    // :room :switching
+    Room* currentRoom = RoomById(gameState->CurrentRoomId);
+    if (player->Position.x <= 0)
+    {
+        s32 roomId = currentRoom->ConnectedRoomIds[RoomIdFromDirection(Direction_West)];
+        if (roomId != -1)
+        {
+            Room* westRoom = RoomById(roomId);
+            SwitchToRoom(Direction_East, westRoom);
+        }
+    }
+    else if (player->Position.x + player->Size.x >= currentRoom->TileCountX * TILE_PIXEL_SIZE)
+    {
+        s32 roomId = currentRoom->ConnectedRoomIds[RoomIdFromDirection(Direction_East)];
+        if (roomId != -1)
+        {
+            Room* eastRoom = RoomById(roomId);
+            SwitchToRoom(Direction_West, eastRoom);
+        }
+    }
+    else if (player->Position.y + player->Size.y >= currentRoom->TileCountY * TILE_PIXEL_SIZE)
+    {
+        s32 roomId = currentRoom->ConnectedRoomIds[RoomIdFromDirection(Direction_North)];
+        if (roomId != -1)
+        {
+            Room* northRoom = RoomById(roomId);
+            SwitchToRoom(Direction_South, northRoom);
+        }
+    }
+    else if (player->Position.y <= 0)
+    {
+        s32 roomId = currentRoom->ConnectedRoomIds[RoomIdFromDirection(Direction_South)];
+        if (roomId != -1)
+        {
+            Room* southRoom = RoomById(roomId);
+            SwitchToRoom(Direction_North, southRoom);
+        }
+    }
 }

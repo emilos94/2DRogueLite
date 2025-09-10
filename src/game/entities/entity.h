@@ -71,12 +71,10 @@ typedef void (*EntityCollisionCallback)(Entity*, Entity*);
 
 enum Direction
 {
-    Direction_West,
-    Direction_North,
-    Direction_East,
-    Direction_South,
-
-    Direction_COUNT
+    Direction_West = 1 << 0,
+    Direction_North = 1 << 1,
+    Direction_East = 1 << 2,
+    Direction_South = 1 << 3
 };
 typedef u8 Direction;
 Direction DirectionOpposite(Direction direction);

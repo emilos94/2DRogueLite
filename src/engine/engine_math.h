@@ -36,7 +36,7 @@ f32 Vec2Distance(Vec2 a, Vec2 b);
 f32 Vec2Dot(Vec2 a, Vec2 b);
 Vec2 Vec2Lerp(Vec2 a, Vec2 b, f32 progress);
 Vec2 Vec2Clamp(Vec2 a, Vec2 min, Vec2 max);
-
+#define V2(_x, _y) ((Vec2){_x, _y})
 
 // Vec3
 typedef struct Vec3
@@ -66,6 +66,8 @@ AABBCollisionInfo AABBCollision(Vec2 minA, Vec2 maxA, Vec2 minB, Vec2 maxB);
 // Rand
 f32 RandF32Ratio(void);
 f32 RandF32Between(f32 min, f32 max);
+u32 RandU32Between(u32 min, u32 max);
 Vec2 RandVec2In(Vec2 min, Vec2 max);
+boolean RandChance(f32 chance);
 
 #endif

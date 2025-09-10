@@ -1,4 +1,5 @@
 #include "entities/entity.h"
+#include "game_internal.h"
 
 #ifndef SYSTEMS_H
 #define SYSTEMS_H
