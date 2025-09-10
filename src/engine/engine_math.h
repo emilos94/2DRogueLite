@@ -7,10 +7,16 @@
 #define ENGINE_MATH_FLOAT_EPSILON 0.001
 #define ENGINE_MATH_PI 3.1427
 
+//utils
 boolean F32Equals(f32 a, f32 b);
 f32 DegreeToRadians(f32 degrees);
 f32 RadiansToDegrees(f32 radians);
 f32 Lerp(f32 a, f32 b, f32 x);
+boolean F32Between(f32 value, f32 min, f32 max);
+f32 F32Clamp(f32 value, f32 min, f32 max);
+
+// Easings
+f32 EaseOutQuint(f32 a);
 
 // Vec2
 typedef struct Vec2
@@ -22,9 +28,15 @@ Vec2 Vec2Normalize(Vec2 a);
 Vec2 Vec2Add(Vec2 a, Vec2 b);
 Vec2 Vec2Addf(Vec2 a, f32 value);
 Vec2 Vec2Sub(Vec2 a, Vec2 b);
+Vec2 Vec2Mul(Vec2 a, Vec2 b);
 Vec2 Vec2Mulf(Vec2 a, f32 scalar);
 f32 Vec2Magnitude(Vec2 a);
 Vec2 Vec2Direction(Vec2 a, Vec2 b);
+f32 Vec2Distance(Vec2 a, Vec2 b);
+f32 Vec2Dot(Vec2 a, Vec2 b);
+Vec2 Vec2Lerp(Vec2 a, Vec2 b, f32 progress);
+Vec2 Vec2Clamp(Vec2 a, Vec2 min, Vec2 max);
+#define V2(_x, _y) ((Vec2){_x, _y})
 
 // Vec3
 typedef struct Vec3
@@ -50,5 +62,12 @@ typedef struct AABBCollisionInfo
 } AABBCollisionInfo;
 
 AABBCollisionInfo AABBCollision(Vec2 minA, Vec2 maxA, Vec2 minB, Vec2 maxB);
+
+// Rand
+f32 RandF32Ratio(void);
+f32 RandF32Between(f32 min, f32 max);
+u32 RandU32Between(u32 min, u32 max);
+Vec2 RandVec2In(Vec2 min, Vec2 max);
+boolean RandChance(f32 chance);
 
 #endif

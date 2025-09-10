@@ -27,11 +27,8 @@ int main(void)
             InputClear();
             WindowPollEvents();
             GameUpdate(accumulator);
-            
-            RenderStartFrame();
             GameRender(accumulator);
-            RenderEndFrame();
-
+            
             WindowSwapBuffers();
             
             accumulator = 0.0;

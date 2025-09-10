@@ -83,6 +83,7 @@ void ShaderProgramBind(ShaderProgram* shader);
 void ShaderProgramUnbind();
 void ShaderDestroy(ShaderProgram* shader);
 void ShaderUniformMat4(ShaderProgram* shader, const char* name, f32* values);
+void ShaderUniformVec2(ShaderProgram* shader, const char* name, f32 x, f32 y);
 void ShaderUniformInts(ShaderProgram* shader, const char* name, s32* values, u32 count);
 
 // Texture
