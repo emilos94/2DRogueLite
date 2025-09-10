@@ -150,7 +150,7 @@ Vec2 Vec2Mulf(Vec2 a, f32 scalar)
 
 f32 Vec2Magnitude(Vec2 a)
 {
-    f32 magnitude = fabsf(a.x) + fabsf(a.y);
+    f32 magnitude = sqrtf(a.x * a.x + a.y * a.y);
     return magnitude;
 }
 

@@ -119,6 +119,8 @@ void GameUpdate(float delta)
             PlayerUpdate(&gameState, player, delta);
         }
 
+        UpdateBullets(delta);
+
         CollisionSystem(delta);
         MovementSystem(delta);
         AnimationSystem(delta);
@@ -128,6 +130,7 @@ void GameUpdate(float delta)
 
         ResolveEntityFrameEvents();
         EntityDestroySystem(delta);
+
     }
 }
 
@@ -237,6 +240,8 @@ void GameRender(float delta)
 #endif
             
     }
+
+    RenderBullets();
     RenderEndFrame();
 
     // Draw ui in separate draw call with 0 camera pos

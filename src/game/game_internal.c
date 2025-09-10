@@ -11,6 +11,7 @@ void* LoadResourcesBackground(void* arguments)
     return NULL;
 }
 
+// :entity :update
 void EntitiesUpdate(f32 delta)
 {
     Entity* entities = GetEntities(); 
@@ -69,6 +70,15 @@ void EntitiesUpdate(f32 delta)
                 {
                     GameOver();
                 }
+            }
+        }
+
+        if (entity->InvulnerableTimer > 0)
+        {
+            entity->InvulnerableTimer -= delta;
+            if (entity->InvulnerableTimer <= 0)
+            {
+                entity->InvulnerableTimer = 0;
             }
         }
 
@@ -200,6 +210,11 @@ void SlimeCallback(Entity* slime, f32 delta)
             Entity* groundImpact = EffectCreateGroundImpact(centerPos);
             groundImpact->RoomId = slime->RoomId;
 
+            Bullet* left = CreateBullet(slime->Position, V2(-BULLET_DEFAULT_SPEED, 0));
+            Bullet* right = CreateBullet(slime->Position, V2(BULLET_DEFAULT_SPEED, 0));
+            Bullet* up = CreateBullet(slime->Position, V2(0, BULLET_DEFAULT_SPEED));
+            Bullet* down = CreateBullet(slime->Position, V2(0, -BULLET_DEFAULT_SPEED));
+
             f32 range = 20;
             Entity* result[10];
             u32 count = EntityQueryInRange(centerPos, range, slime->Id, &result[0], 10);
@@ -213,6 +228,29 @@ void SlimeCallback(Entity* slime, f32 delta)
             }
         }
     }
+}
+
+// :entity
+void EntityReceiveDamage(Entity* entity, Vec2 direction, f32 knockBackAmount, f32 damage)
+{
+    assert(entity);
+
+    if (entity->InvulnerableTimer > 0)
+    {
+        return;
+    }
+
+    if (entity->Id.Index == gameState.PlayerId.Index)
+    {
+        entity->InvulnerableTimer = PLAYER_INVULNERABLE_ON_DMG_TIME;
+    }
+
+    entity->RenderScale.x = 1.7;
+    entity->RenderScale.y = 0.4;
+    EntityFlash(entity, (Vec3){1.0, 1.0, 1.0}, 1);
+    entity->KnockBackAmount = knockBackAmount;
+    entity->KnockBackDirection = direction;
+    entity->Health -= damage;
 }
 
 // :slime
@@ -560,3 +598,78 @@ Vec2 MousePosResolution(void)
 }
 
 // :util :end
+
+// :bullets
+Bullet* CreateBullet(Vec2 Position, Vec2 Velocity)
+{
+    for (s32 i = 0; i < BULLET_CAPACITY; i++)
+    {
+        Bullet* bullet = gameState.Bullets + i;
+        if (bullet->TimeToLive <= 0)
+        {
+            bullet->TimeToLive = 3;
+            bullet->Position = Position;
+            bullet->Size = V2(8, 8);
+            bullet->Velocity = Velocity;
+            return bullet;
+        }
+    }
+
+    assert(false);
+}
+
+// :bullets
+void UpdateBullets(f32 delta)
+{
+    Room* room = RoomById(gameState.CurrentRoomId);
+
+    for (s32 i = 0; i < BULLET_CAPACITY; i++)
+    {
+        Bullet* bullet = gameState.Bullets + i;
+        if (bullet->TimeToLive <= 0)
+        {
+            continue;
+        }
+
+        bullet->TimeToLive -= delta;
+
+        Vec2 newPosition = Vec2Add(bullet->Position, Vec2Mulf(bullet->Velocity, delta));
+        if (newPosition.x <= 0 || newPosition.x >= room->Size.x || newPosition.y <= 0 || newPosition.y >= room->Size.y)
+        {
+            bullet->TimeToLive = 0;
+        }
+
+        bullet->Position = newPosition;
+
+        EntityCollisionInfo collision = EntityQueryCollision(newPosition, bullet->Size, ENTITY_ID_EMPTY);
+        if (collision.CollisionInfo.Colliding)
+        {
+            if (collision.CollidingEntityId.Index == gameState.PlayerId.Index)
+            {
+                Entity* player = EntityById(gameState.PlayerId);
+                bullet->TimeToLive = 0;
+                EntityReceiveDamage(player, Vec2Normalize(bullet->Velocity), 2, 1);
+            }
+        }
+    }
+}
+
+// :bullets
+void RenderBullets()
+{
+    Texture* texture = GetTexture("bullet_8x8.png");
+
+    for (s32 i = 0; i < BULLET_CAPACITY; i++)
+    {
+        Bullet* bullet = gameState.Bullets + i;
+        if (bullet->TimeToLive <= 0)
+        {
+            continue;
+        }
+
+        QuadDrawCmd* cmd = DrawTexture(bullet->Position, texture);
+        cmd->ColorOverwrite = 1;
+        cmd->Color = COLOR_WHITE;
+        cmd->ZLayer = ZLayer_Entity;
+    }
+}

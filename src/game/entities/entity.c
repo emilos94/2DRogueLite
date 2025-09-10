@@ -14,7 +14,7 @@ EntityState entityState = {0};
 
 Entity* EntityCreate(EntityFlags flags)
 {
-    for (s32 i = 0; i < ENTITY_CAPACITY; i++)
+    for (s32 i = 1; i < ENTITY_CAPACITY; i++)
     {
         Entity* e = &entityState.Entities[i];
         if (!e->Flags & EntityFlag_Active)
@@ -142,18 +142,6 @@ Vec2 EntityCenterPos(Entity* entity)
 {
     Vec2 result = Vec2Add(entity->Position, Vec2Mulf(entity->Size, 0.5));
     return result;
-}
-
-void EntityReceiveDamage(Entity* entity, Vec2 direction, f32 knockBackAmount, f32 damage)
-{
-    assert(entity);
-
-    entity->RenderScale.x = 1.7;
-    entity->RenderScale.y = 0.4;
-    EntityFlash(entity, (Vec3){1.0, 1.0, 1.0}, 1);
-    entity->KnockBackAmount = knockBackAmount;
-    entity->KnockBackDirection = direction;
-    entity->Health -= damage;
 }
 
 void RegisterEntityEventListener(OnEntityEvent callback)

@@ -10,6 +10,7 @@ typedef struct EntityId
     u32 Index;
     u32 Generation;
 } EntityId;
+#define ENTITY_ID_EMPTY ((EntityId){0, 0})
 
 enum EntityFlags
 {
@@ -99,6 +100,8 @@ typedef struct Entity
     f32 RenderOffsetY;
     f32 Rotation;
     Texture* Texture;
+
+    f32 InvulnerableTimer;
 
     boolean QueuedForDestruction;
 
@@ -196,7 +199,5 @@ for(u32 i = 0; i < ENTITY_CAPACITY; i++)\
 for(Entity* name = GetEntities() + i; name; name = 0)\
 
 //typedef void(*OnEntityDestroyCallback)(Entity* entity, GameState* gameState);
-
-void EntityReceiveDamage(Entity* entity, Vec2 direction, f32 knockBackAmount, f32 damage);
 
 #endif

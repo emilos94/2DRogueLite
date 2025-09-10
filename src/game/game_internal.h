@@ -13,6 +13,8 @@
 #define RESOLUTION_HEIGHT 180
 #define RESOLUTION_VEC2_HALF ((Vec2) {RESOLUTION_WIDTH / 2, RESOLUTION_HEIGHT / 2})
 
+#define PLAYER_INVULNERABLE_ON_DMG_TIME 0.3
+
 #define COLOR_WHITE ((Vec3){1,1,1})
 
 // :util
@@ -57,6 +59,21 @@ typedef struct Map
     s32 StartingRoomId;
 } Map;
 
+// :bullets
+typedef struct Bullet 
+{
+    Vec2 Position;
+    Vec2 Size;
+    Vec2 Velocity;
+    f32 TimeToLive;
+} Bullet;
+#define BULLET_CAPACITY 248
+#define BULLET_DEFAULT_SPEED 100
+
+Bullet* CreateBullet(Vec2 Position, Vec2 Velocity);
+void UpdateBullets(f32 delta);
+void RenderBullets();
+
 typedef struct GameState 
 {
     Texture Texture;
@@ -77,6 +94,8 @@ typedef struct GameState
     Vec2 CameraTargetPosition;
 
     Map map;
+
+    Bullet Bullets[BULLET_CAPACITY];
 } GameState;
 GameState gameState = {};
 
@@ -87,6 +106,8 @@ void EntitiesUpdate(f32 delta);
 // entities :entity
 Entity* EntitySlimeCreate(Vec2 position);
 Entity* EntityGateCreate(Vec2 position);
+
+void EntityReceiveDamage(Entity* entity, Vec2 direction, f32 knockBackAmount, f32 damage);
 
 // :room
 Room* GenerateNewRoom(void);
