@@ -171,6 +171,9 @@ typedef struct Entity
     EntityCallback OnEntityDestroy;
     EntityCallback CustomCallback;
     EntityCollisionCallback OnCollision;
+
+    // Sounds
+    const char* OnReceiveDamageSound;
 } Entity;
 
 Entity* GetEntities(void);

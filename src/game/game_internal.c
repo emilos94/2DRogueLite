@@ -3,9 +3,7 @@
 void* LoadResourcesBackground(void* arguments)
 {
     SoundInit();
-
-    GameState* gameState = (GameState*)arguments;
-    gameState->TestSound = SoundLoad("res/sounds/strike_blade_medium_003.wav");
+    LoadSounds();
 
     printf("Thread done, returning!\n");
     return NULL;
@@ -251,6 +249,12 @@ void EntityReceiveDamage(Entity* entity, Vec2 direction, f32 knockBackAmount, f3
     entity->KnockBackAmount = knockBackAmount;
     entity->KnockBackDirection = direction;
     entity->Health -= damage;
+
+    if (entity->OnReceiveDamageSound)
+    {
+        SoundSource* sound = GetSound(entity->OnReceiveDamageSound);
+        SoundPlay(sound);
+    }
 }
 
 // :slime
@@ -270,6 +274,8 @@ Entity* EntitySlimeCreate(Vec2 position)
     slime->JumpTime = 1.0;
     slime->JumpTimer = RandF32Between(0, 1);
     slime->JumpHeight = 20.0;
+
+    slime->OnReceiveDamageSound = "receive_dmg.wav";
 
     return slime;
 }

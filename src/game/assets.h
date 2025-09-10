@@ -6,8 +6,10 @@
 
 void AssetsLoad(void);
 void AssetsDestroy(void);
+void LoadSounds(void);
 
 Texture* GetTexture(const char* path);
+SoundSource* GetSound(const char* name);
 
 enum AnimationId
 {

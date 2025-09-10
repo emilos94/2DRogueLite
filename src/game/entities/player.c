@@ -31,7 +31,7 @@ void PlayerInput(GameState* gameState, Entity* player, f32 delta)
         player->WeaponSwinging = true;
         player->WeaponSwingTimer = player->SwingSpeed;
 
-        SoundPlay(&gameState->TestSound);
+        SoundPlay(GetSound("strike_blade_medium_003.wav"));
         Vec2 attackDirection = Vec2Direction(player->Position, MousePosWorld());
 
         Vec2 effectPosition = player->Position;
