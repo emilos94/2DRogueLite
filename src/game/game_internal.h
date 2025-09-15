@@ -74,6 +74,7 @@ Bullet* CreateBullet(Vec2 Position, Vec2 Velocity);
 void UpdateBullets(f32 delta);
 void RenderBullets();
 
+// :gamestate
 typedef struct GameState 
 {
     Texture Texture;
@@ -96,6 +97,10 @@ typedef struct GameState
     Map map;
 
     Bullet Bullets[BULLET_CAPACITY];
+
+    u32 CoinCount;
+
+    f32 GameOverhintTextAlpha;
 } GameState;
 GameState gameState = {};
 
@@ -106,8 +111,11 @@ void EntitiesUpdate(f32 delta);
 // entities :entity
 Entity* EntitySlimeCreate(Vec2 position);
 Entity* EntityGateCreate(Vec2 position);
+Entity* EntityCoinCreate(Vec2 position);
 
 void EntityReceiveDamage(Entity* entity, Vec2 direction, f32 knockBackAmount, f32 damage);
+void EntityJumpTo(Entity* entity, Vec2 position, f32 jumpHeight);
+void GenericOnEntityEvent(EntityId entityId, EntityEvent event);
 
 // :room
 Room* GenerateNewRoom(void);

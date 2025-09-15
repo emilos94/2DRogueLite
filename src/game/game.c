@@ -4,6 +4,17 @@
 #include "entities/player.h"
 #include "rooms.h"
 
+typedef struct AppState
+{
+    Arena ArenaFrame;
+    Arena ArenaPermanent;
+
+    f32 ElapsedTime;
+
+    Font Font;
+} AppState;
+AppState appState = {0};
+
 void GameInit()
 {
     WindowCreate("Test", 1280, 720);
@@ -20,6 +31,7 @@ void GameInit()
 
     // Register event listeners
     // RegisterEntityEventListener(RoomsOnEntityEvent);
+    RegisterEntityEventListener(GenericOnEntityEvent);
 
     // Store index to start room
     Map map = GenerateMap(10, 10, 20);
@@ -80,10 +92,21 @@ void GameInit()
     gameState.map = map;
 
     InitNewGame();
+
+    appState.ArenaFrame = ArenaCreate(MB(10));
+    appState.ArenaPermanent = ArenaCreate(MB(10));
+
+    if (FileLoadFont(&appState.ArenaPermanent, appState.ArenaFrame, &appState.Font, "res/fonts/AtariFont16.fnt"))
+    {
+        appState.Font.Texture = GetTexture(appState.Font.TextureFile);
+    }
 }
 
 void GameUpdate(float delta)
 {
+    appState.ArenaFrame.Offset = 0;
+    appState.ElapsedTime += delta;
+
     if (gameState.GameMode == GameMode_GameOver)
     {
         if (KeyPressed(GLFW_KEY_ENTER))
@@ -121,10 +144,13 @@ void GameUpdate(float delta)
 
         UpdateBullets(delta);
 
+        // :system
         CollisionSystem(delta);
         MovementSystem(delta);
         AnimationSystem(delta);
         TimeToLiveSystem(delta);
+        EntityJumpingSystem(delta);
+        CollectibleSystem(delta);
 
         EntitiesUpdate(delta);
 
@@ -213,7 +239,22 @@ void GameRender(float delta)
 
             if (entity->Flags & EntityFlag_RenderShadow)
             {
-                QuadDrawCmd* shadow = DrawTexture(entity->Position, GetTexture("shadow_small.png"));
+                Texture* shadowTexture = 0;
+                if (entity->ShadowSize == ShadowSize_Mini)
+                {
+                    shadowTexture = GetTexture("shadow_mini.png");
+                }
+                else
+                {
+                    shadowTexture = GetTexture("shadow_small.png");
+                }
+
+                QuadDrawCmd* shadow = DrawTexture(entity->Position, shadowTexture);
+                if (entity->Texture && entity->Texture->Width < shadowTexture->Width)
+                {
+                    shadow->Position.x -= (shadowTexture->Width - entity->Texture->Width) / 2;
+                }
+
                 shadow->Position.y -= 3;
                 shadow->ZLayer = 1;
                 shadow->Alpha = 0.5;
@@ -291,19 +332,47 @@ void GameRender(float delta)
         u32 width = 64;
         u32 height = 10;
         u32 padding = 2;
+
+        f32 y0 = RESOLUTION_HEIGHT - (height + padding);
+
         QuadDrawCmd* healthBarBack = DrawQuad(
-            (Vec2) { padding, RESOLUTION_HEIGHT - (height + padding) },
+            (Vec2) { padding, y0 },
             (Vec2) { width, height},
             (Vec3) {1.0, 0.2, 0.2}
         );
         healthBarBack->ZLayer = ZLayer_UI0;
         
         QuadDrawCmd* healthBarFront= DrawQuad(
-            (Vec2) { padding, RESOLUTION_HEIGHT - (height + padding) },
+            (Vec2) { padding, y0 },
             (Vec2) { width * (player->Health) / 5, height},
             (Vec3) { 0.2, 1.0, 0.2}
         );
         healthBarFront->ZLayer = ZLayer_UI1;
+
+        f32 x0 = healthBarBack->Position.x + healthBarBack->Size.x + padding * 2;
+
+        Texture* coinTexture = GetTexture("coin_8x8.png");
+        DrawTexture(V2(x0, y0), coinTexture);
+        x0 += coinTexture->Width + padding;
+
+        char* coinTextBuffer = ArenaPushArr(&appState.ArenaFrame, char, 10);
+        snprintf(coinTextBuffer, 10, "%d", gameState.CoinCount);
+        Text* coinText = DrawText(&appState.Font, StringLit(coinTextBuffer), V2(x0, y0), 0.4);
+
+    }
+    
+    if (gameState.GameMode == GameMode_GameOver)
+    {
+        Text* gameOverText = DrawText(&appState.Font, StringLit("Game Over"), V2(0, 0), 1.0);
+        gameOverText->Position.x = RESOLUTION_WIDTH / 2 - gameOverText->Size.x / 2;
+        gameOverText->Position.y = RESOLUTION_HEIGHT - 45;
+
+        gameState.GameOverhintTextAlpha = sin(appState.ElapsedTime) * 0.5 + 0.5;
+
+        Text* hintText = DrawText(&appState.Font, StringLit("Press 'enter' to retry"), V2(0, 0), 0.5);
+        hintText->Position.x = RESOLUTION_WIDTH / 2 - hintText->Size.x / 2;
+        hintText->Position.y = RESOLUTION_HEIGHT - 90;
+        hintText->Alpha = gameState.GameOverhintTextAlpha;
     }
     RenderEndFrame();
 }
@@ -312,6 +381,8 @@ void GameDestroy()
 {
     AssetsDestroy();
     free(gameState.map.RoomIds);
+    free(appState.ArenaFrame.Buffer);
+    free(appState.ArenaPermanent.Buffer);
 }
 
 boolean GameRunning()

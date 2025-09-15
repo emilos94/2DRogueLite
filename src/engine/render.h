@@ -1,5 +1,6 @@
 #include "opengl_util.h"
 #include "engine_math.h"
+#include "string_utils.h"
 
 #ifndef RENDER_H
 #define RENDER_H
@@ -38,6 +39,40 @@ typedef struct Animation
     boolean JustFinished;
 } Animation;
 
+typedef struct CharacterInfo {
+    struct CharacterInfo* Next;
+    struct CharacterInfo* Prev;
+    u32 Id;
+    u32 X, Y, Width, Height, XAdvance;
+    int XOffset, YOffset;
+} CharacterInfo;
+
+#define FONT_FACE_MAX 64
+typedef struct Font {
+    char Face[FONT_FACE_MAX];
+    char TextureFile[FONT_FACE_MAX];
+    Texture* Texture;
+    u32 Paddings[4];
+    u32 LineHeight, Base, Width, Height;
+
+    u32 CharacterInfoCount;
+    CharacterInfo* CharacterInfoFirst;
+} Font;
+CharacterInfo* FontGetCharInfo(Font* font, char c);
+
+typedef struct Text
+{
+    Font* Font;
+    f32 Scale;
+    String Text;
+    Vec2 Position;
+    Vec2 Size;
+    Vec3 Color;
+    f32 MaxLineWidth;
+    s32 ZLayer;
+    f32 Alpha;
+} Text;
+
 f32 AnimationDuration(Animation* animation);
 void AnimationUpdate(Animation* animation, f32 delta);
 u32 AnimationFrameWidth(Animation* animation);
@@ -50,6 +85,7 @@ void RenderSetCameraPos(Vec2 position);
 QuadDrawCmd* DrawQuad(Vec2 bottomLeft, Vec2 size, Vec3 color);
 QuadDrawCmd* DrawTexture(Vec2 bottomLeft, Texture* texture);
 QuadDrawCmd* DrawAnimation(Vec2 bottomLeft, Animation* animation);
+Text* DrawText(Font* font, String text, Vec2 position, f32 fontSize);
 
 void RenderStartFrame();
 void RenderEndFrame();

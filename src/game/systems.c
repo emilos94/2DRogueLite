@@ -72,6 +72,7 @@ void CollisionSystem(f32 delta)
         EntityCollisionInfo collision = EntityQueryCollision(Vec2Add(entity->Position, entity->BoundingBox.Offset), entity->BoundingBox.Size, entity->Id);
         if (collision.CollisionInfo.Colliding && entity->OnCollision)
         {
+
             (*entity->OnCollision)(entity, EntityById(collision.CollidingEntityId));
         }
     }
@@ -142,5 +143,74 @@ void EntityDestroySystem(f32 delta)
         memset(entity, 0, sizeof(Entity));
         id.Generation++;
         entity->Id = id;
+    }
+}
+
+void EntityJumpingSystem(f32 delta)
+{
+    Entity* entities = GetEntities();
+    for (s32 i = 0; i < ENTITY_CAPACITY; i++)
+    {
+        Entity* entity = entities + i;
+        if (!(entity->Flags & EntityFlag_Active) || !(entity->Flags & EntityFlag_Jump) || !entity->IsJumping)
+        {
+            continue;
+        }
+
+        entity->JumpDriver += delta;
+        f32 progress = entity->JumpDriver / entity->JumpTime;
+        entity->Position = Vec2Lerp(entity->JumpStartPos, entity->JumpTarget, progress);
+
+        // parabular
+        entity->RenderOffsetY = -4.0 * entity->JumpHeight * (progress * progress - progress);
+
+        if (entity->JumpDriver >= entity->JumpTime)
+        {
+            entity->RenderOffsetY = 0;
+            entity->JumpDriver = 0;
+            entity->IsJumping = false;
+            entity->RenderScale.x = 1.7;
+            entity->RenderScale.y = 0.4;
+
+            if (entity->OnLandFromJumpCallback)
+            {
+                (*entity->OnLandFromJumpCallback)(entity, delta);
+            }
+        }
+    }
+}
+
+
+void CollectibleSystem(f32 delta)
+{
+    const f32 delayBeforePickupTime = 1.0;
+    Entity* player = EntityById(gameState.PlayerId);
+
+    if (!player)
+    {
+        return;
+    }
+
+    ENTITIES_LOOP(entity)
+    {
+        if (!(entity->Flags & EntityFlag_Active) || !(entity->Flags & EntityFlag_Collectible))
+        {
+            continue;
+        }
+
+        if (gameState.ElapsedTime - entity->CreatedTime <= delayBeforePickupTime)
+        {
+            continue;
+        }
+
+        if (Vec2Distance(EntityCenterPos(player), entity->Position) <= entity->PickupRange || entity->IsBeingPickedUp)
+        {
+            if (!entity->IsBeingPickedUp)
+            {
+                entity->IsBeingPickedUp = true;
+            }
+
+            entity->Position = Vec2Lerp(entity->Position, EntityCenterPos(player), delta * 10);
+        }
     }
 }

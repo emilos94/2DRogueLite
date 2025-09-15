@@ -25,6 +25,8 @@ enum EntityFlags
     EntityFlag_HasHealth = 1 << 8,
     EntityFlag_RenderShadow = 1 << 9,
     EntityFlag_Collider = 1 << 10,
+    EntityFlag_Collectible = 1 << 11,
+    EntityFlag_Jump = 1 << 12,
 };
 typedef u64 EntityFlags;
 
@@ -33,6 +35,7 @@ enum EntityKind
     EntityKind_None,
     EntityKind_Player,
     EntityKind_Enemy,
+    EntityKind_Loot,
     EntityKind_COUNT
 };
 typedef u32 EntityKind;
@@ -80,6 +83,13 @@ enum Direction
 typedef u8 Direction;
 Direction DirectionOpposite(Direction direction);
 
+enum ShadowSize
+{
+    ShadowSize_Mini,
+    ShadowSize_Small
+};
+typedef u8 ShadowSize;
+
 typedef struct RoomSwitchData
 {
     s32 ConnectedRoom;
@@ -101,7 +111,14 @@ typedef struct Entity
     f32 Rotation;
     Texture* Texture;
 
+    f32 CreatedTime;
+
+    // pickup data
+    f32 PickupRange;
+    boolean IsBeingPickedUp;
+
     f32 InvulnerableTimer;
+    ShadowSize ShadowSize;
 
     boolean QueuedForDestruction;
 
@@ -170,6 +187,7 @@ typedef struct Entity
     // Callbacks
     EntityCallback OnEntityDestroy;
     EntityCallback CustomCallback;
+    EntityCallback OnLandFromJumpCallback;
     EntityCollisionCallback OnCollision;
 
     // Sounds

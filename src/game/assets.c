@@ -190,7 +190,7 @@ Texture* GetTexture(const char* path)
         Texture* texture = assetState.Textures + i;
         // note: if str eq ever becomes a problem, precompute hash ?
         // Probably wont, only use this on entity creation
-        if (StringEquals(path, texture->Name))
+        if (CharsEquals(path, texture->Name))
         {
             return texture;
         }
@@ -208,7 +208,7 @@ SoundSource* GetSound(const char* name)
         SoundSource* sound = assetState.Sounds + i;
         // note: if str eq ever becomes a problem, precompute hash ?
         // Probably wont, only use this on entity creation
-        if (StringEquals(name, sound->Name))
+        if (CharsEquals(name, sound->Name))
         {
             return sound;
         }
