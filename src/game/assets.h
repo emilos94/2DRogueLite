@@ -19,6 +19,8 @@ enum AnimationId
     AnimationId_EffectSlash,
     AnimationId_EffectPoof,
     AnimationId_EffectGroundImpact,
+    AnimationId_EffectSpear,
+    AnimationId_EffectSpearSmall,
     AnimationId_COUNT
 };
 typedef u32 AnimationId;

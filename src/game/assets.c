@@ -111,6 +111,22 @@ void SetupAnimationData(void)
         .SecondsPerFrame = 0.1,
         .Texture = GetTexture("ground_impact_effect.png")
     };
+
+    assetState.AnimationData[AnimationId_EffectSpear] = (AnimationData) {
+        .TextureFrameCount = 3,
+        .FrameIndexStart = 0,
+        .FrameIndexEnd = 2,
+        .SecondsPerFrame = 0.085,
+        .Texture = GetTexture("spear_effect.png")
+    };
+ 
+    assetState.AnimationData[AnimationId_EffectSpearSmall] = (AnimationData) {
+        .TextureFrameCount = 3,
+        .FrameIndexStart = 0,
+        .FrameIndexEnd = 2,
+        .SecondsPerFrame = 0.085,
+        .Texture = GetTexture("spear_effect_small.png")
+    };
 }
 
 void LoadSounds(void)

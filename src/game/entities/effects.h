@@ -7,4 +7,6 @@ Entity* EffectCreateSlash(Vec2 position, Vec2 direction);
 Entity* EffectCreatePoof(Vec2 position);
 Entity* EffectCreateGroundImpact(Vec2 position);
 
+Entity* EffectOneshotAnimation(Vec2 position, AnimationId id);
+
 #endif

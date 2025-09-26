@@ -8,9 +8,11 @@ enum ItemId
     ItemId_None,
 
     ItemId_Sword,
+    ItemId_Spear,
 
     ItemId_COUNT
 };
+typedef u32 ItemId;
 
 enum ItemKind 
 {
@@ -20,16 +22,18 @@ enum ItemKind
     
     ItemKind_COUNT
 };
+typedef u32 ItemKind;
 
-typedef struct
+typedef struct ItemData
 {
     ItemId Id;
     ItemKind Kind;
+    Texture* Icon;
+    Texture* Texture;
+} ItemData;
 
-    // Weapon
-    
-
-} Item;
+void SetupItems();
+ItemData* ItemDataById(ItemId id);
 
 
 #endif

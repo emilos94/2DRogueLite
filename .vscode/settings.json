@@ -31,7 +31,8 @@
         "entity.h": "c",
         "effects.h": "c",
         "rooms.h": "c",
-        "algorithm": "cpp"
+        "algorithm": "cpp",
+        "items.h": "c"
     },
     "launches": {
         "DebugLaunch": "Debug (gdb) Launch"

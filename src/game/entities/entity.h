@@ -135,6 +135,13 @@ typedef struct Entity
 
     Direction DoorDirection;
 
+    f32 PrimaryActionTimer;
+    boolean IsPrimaryActionActive;
+    f32 SecondaryActionTimer;
+    boolean IsSecondaryActionActive;
+
+    boolean ChasingPlayer;
+
     // Jumping
     boolean IsJumping;
     f32 JumpTimer;
@@ -169,14 +176,15 @@ typedef struct Entity
     // Move into gamestate?
     // Note: Have weapon as standalone entity ?
     Vec2 WeaponAnchor;
+    Vec2 WeaponAncorOffset;
     f32 WeaponRotation;
     f32 WeaponExtraRotation;
     boolean WeaponUp;
-    boolean WeaponSwinging;
+    boolean WeaponAttacking;
     f32 WeaponOffsetDriver;
-    f32 WeaponSwingTimer;
+    f32 WeaponAttackTimer;
     f32 WeaponSwipe;
-    f32 SwingSpeed;
+    f32 AttackSpeed;
     f32 AttackTimer;
     f32 AttackCooldown;
 

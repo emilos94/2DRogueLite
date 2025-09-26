@@ -3,6 +3,7 @@
 #include "assets.h"
 #include "entities/player.h"
 #include "rooms.h"
+#include "ui/ui.h"
 
 typedef struct AppState
 {
@@ -25,13 +26,15 @@ void GameInit()
     AssetsLoad();
     
     pthread_t backgroundThread;
-    s32 result = pthread_create(&backgroundThread, NULL, LoadResourcesBackground, (void*)(&gameState));
+    s32 result = pthread_create(&backgroundThread, NULL, LoadSoundResourcesBackground, (void*)(&gameState));
     
     gameState.IsRunning = true;
 
     // Register event listeners
     // RegisterEntityEventListener(RoomsOnEntityEvent);
     RegisterEntityEventListener(GenericOnEntityEvent);
+
+    SetupItems();
 
     // Store index to start room
     Map map = GenerateMap(10, 10, 20);
@@ -100,6 +103,9 @@ void GameInit()
     {
         appState.Font.Texture = GetTexture(appState.Font.TextureFile);
     }
+
+    UIActionBarSetItem(0, ItemId_Sword);
+    UIActionBarSetItem(1, ItemId_Spear);
 }
 
 void GameUpdate(float delta)
@@ -157,11 +163,16 @@ void GameUpdate(float delta)
         ResolveEntityFrameEvents();
         EntityDestroySystem(delta);
 
+        // :ui updates
+        UIActionBarUpdate(delta);
     }
 }
 
 void GameRender(float delta)
-{   
+{
+    // :ui
+    gameState.UIHovered = false;
+
     Entity* player = EntityById(gameState.PlayerId);
 
     RenderStartFrame();
@@ -220,7 +231,7 @@ void GameRender(float delta)
         if (cmd)
         {
             cmd->FlipTextureX = entity->FlipTextureX;
-            cmd->ZLayer = 2;
+            cmd->ZLayer = ZLayer_Entity0;
             cmd->Rotation = entity->Rotation;
             cmd->Size = Vec2Mul(cmd->Size, entity->RenderScale);
 
@@ -263,9 +274,19 @@ void GameRender(float delta)
 
         if (entity->Id.Index == gameState.PlayerId.Index)
         {
-            QuadDrawCmd* drawCmd = DrawTexture(entity->WeaponAnchor, GetTexture("sword.png"));
-            drawCmd->Rotation = entity->WeaponRotation;
-            drawCmd->ZLayer = 2;
+            if (gameState.ActionBarSelectedIndex != -1)
+            {
+                ActionBarSlot* slot = &gameState.ActionBarSlots[gameState.ActionBarSelectedIndex];
+                
+                if (slot->ItemId != ItemId_None)
+                {
+                    ItemData* itemData = ItemDataById(slot->ItemId);
+
+                    QuadDrawCmd* drawCmd = DrawTexture(entity->WeaponAnchor, itemData->Texture);
+                    drawCmd->Rotation = entity->WeaponRotation;
+                    drawCmd->ZLayer = ZLayer_Entity0;
+                }
+            }
         }
 
 #ifdef DEBUG
@@ -325,7 +346,7 @@ void GameRender(float delta)
     }
 #endif
 
-    // ui
+    // :ui render
     // player health bar
     if (player)
     {
@@ -360,6 +381,8 @@ void GameRender(float delta)
         Text* coinText = DrawText(&appState.Font, StringLit(coinTextBuffer), V2(x0, y0), 0.4);
 
     }
+
+    UIActionBarRender(delta);
     
     if (gameState.GameMode == GameMode_GameOver)
     {
@@ -375,6 +398,15 @@ void GameRender(float delta)
         hintText->Alpha = gameState.GameOverhintTextAlpha;
     }
     RenderEndFrame();
+
+    if (gameState.UIHovered)
+    {
+        WindowSetCursorHand();
+    }
+    else
+    {
+        WindowSetCursorArrow();
+    }
 }
 
 void GameDestroy()

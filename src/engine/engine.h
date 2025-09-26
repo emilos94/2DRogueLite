@@ -16,6 +16,8 @@ boolean WindowShouldClose();
 void WindowDestroy();
 u32 WindowWidth();
 u32 WindowHeight();
+void WindowSetCursorArrow(void);
+void WindowSetCursorHand(void);
 
 // Input
 boolean KeyPressed(u32 key);

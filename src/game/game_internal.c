@@ -1,6 +1,6 @@
 #include "game_internal.h"
 
-void* LoadResourcesBackground(void* arguments)
+void* LoadSoundResourcesBackground(void* arguments)
 {
     SoundInit();
     LoadSounds();
@@ -103,7 +103,7 @@ void InitNewGame(void)
     player->WeaponAnchor = (Vec2) { 11, 7 };
     player->WeaponSwipe = 0.67;
     player->WeaponExtraRotation = 0;
-    player->SwingSpeed = 0.2;
+    player->AttackSpeed = 0.2;
     player->Kind = EntityKind_Player;
     player->Health = 5;
     player->AttackCooldown = 0.5;
@@ -311,6 +311,65 @@ Entity* EntitySlimeCreate(Vec2 position)
     return slime;
 }
 
+// :skeleton
+void SkeletonCallback(Entity* skeleton, f32 delta)
+{
+    Entity* player = EntityById(gameState.PlayerId);
+    if (Vec2Distance(player->Position, skeleton->Position) <= 100)
+    {
+        Vec2 dirToPlayer = Vec2Direction(skeleton->Position, player->Position);
+        skeleton->Velocity = Vec2Mulf(dirToPlayer, 30);
+        skeleton->IsPrimaryActionActive = true;
+    }
+    else
+    {
+        skeleton->IsPrimaryActionActive = false;
+    }
+
+    if (skeleton->PrimaryActionTimer > 0 && skeleton->IsPrimaryActionActive)
+    {
+        skeleton->PrimaryActionTimer -= delta;
+        printf("%.2f\n", skeleton->PrimaryActionTimer);
+
+        if (skeleton->PrimaryActionTimer <= 0)
+        {
+            printf("Skeleton primary action!\n");
+            Vec2 dirToPlayer = Vec2Direction(skeleton->Position, player->Position);
+            Bullet* bullet = CreateBullet(skeleton->Position, Vec2Mulf(dirToPlayer, BULLET_DEFAULT_SPEED));
+        
+            skeleton->RenderScale.x = 1.5;
+            skeleton->RenderScale.y = 0.7;
+        
+            skeleton->PrimaryActionTimer = 5;
+        }
+    }
+}
+
+
+// :skeleton
+Entity* EntitySkeletonCreate(Vec2 position)
+{
+    Entity* skeleton = EntityCreate(
+        EntityFlag_Moving | EntityFlag_Solid | EntityFlag_Render | 
+        EntityFlag_HasHealth | EntityFlag_RenderShadow | EntityFlag_FlipXOnMove
+    );
+
+    skeleton->Texture = GetTexture("skeleton.png");
+    skeleton->Position = position;
+    skeleton->BoundingBox = (BoundingBox){ .Offset = {5, 0}, .Size = {12, 20} };
+    skeleton->Size = (Vec2) {12, 25};
+    skeleton->Kind = EntityKind_Enemy;
+    skeleton->Health = 3;
+    skeleton->OnEntityDestroy = SpawnCorpse;
+    skeleton->CustomCallback = SkeletonCallback;
+
+    skeleton->OnReceiveDamageSound = "receive_dmg.wav";
+    skeleton->ShadowSize = ShadowSize_Small;
+    skeleton->PrimaryActionTimer = 1;
+
+    return skeleton;
+}
+
 Entity* EntityGateCreate(Vec2 position)
 {
     Entity* door = EntityCreate(EntityFlag_Render | EntityFlag_Solid);
@@ -342,7 +401,7 @@ void CoinCollisionCallback(Entity* coin, Entity* other)
     {
         EntityQueueDestroy(coin->Id);
         gameState.CoinCount++;
-        printf("Collected a coin!\n");
+        SoundPlay(GetSound("small_pickup.wav"));
     }
 }
 
@@ -455,10 +514,17 @@ void SwitchToRoom(Direction directionFrom, Room* room)
 
     if (!room->IsVisited)
     {
-        for (s32 i = 0; i < 5; i++)
+        for (s32 i = 0; i < 3; i++)
         {
             Vec2 pos = RandomPositionInLevel();
             Entity* slime = EntitySlimeCreate(pos);
+            slime->RoomId = room->Id;
+        }
+
+        for (s32 i = 0; i < 3; i++)
+        {
+            Vec2 pos = RandomPositionInLevel();
+            Entity* slime = EntitySkeletonCreate(pos);
             slime->RoomId = room->Id;
         }
 
@@ -580,6 +646,7 @@ Map GenerateMap(u32 roomCountX, u32 roomCountY, u32 roomsToPlace)
     room->MapY = roomCountY / 2 - 1;
     result.RoomIds[room->MapY * roomCountX + room->MapX] = room->Id;
     result.StartingRoomId = room->Id;
+    room->IsVisited = true;
 
     u32 roomsPlaced = 0;
     while(roomsPlaced < roomsToPlace)
@@ -697,6 +764,7 @@ Bullet* CreateBullet(Vec2 Position, Vec2 Velocity)
             bullet->Position = Position;
             bullet->Size = V2(8, 8);
             bullet->Velocity = Velocity;
+            bullet->RoomId = gameState.CurrentRoomId;
             return bullet;
         }
     }
@@ -712,7 +780,7 @@ void UpdateBullets(f32 delta)
     for (s32 i = 0; i < BULLET_CAPACITY; i++)
     {
         Bullet* bullet = gameState.Bullets + i;
-        if (bullet->TimeToLive <= 0)
+        if (bullet->TimeToLive <= 0 || bullet->RoomId != gameState.CurrentRoomId)
         {
             continue;
         }
@@ -748,7 +816,7 @@ void RenderBullets()
     for (s32 i = 0; i < BULLET_CAPACITY; i++)
     {
         Bullet* bullet = gameState.Bullets + i;
-        if (bullet->TimeToLive <= 0)
+        if (bullet->TimeToLive <= 0 || bullet->RoomId != gameState.CurrentRoomId)
         {
             continue;
         }
@@ -756,6 +824,31 @@ void RenderBullets()
         QuadDrawCmd* cmd = DrawTexture(bullet->Position, texture);
         cmd->ColorOverwrite = 1;
         cmd->Color = COLOR_WHITE;
-        cmd->ZLayer = ZLayer_Entity;
+        cmd->ZLayer = ZLayer_Entity0;
     }
+}
+
+// :items
+void SetupItems()
+{
+    gameState.ItemData[ItemId_Sword] = (ItemData){
+        .Id = ItemId_Sword,
+        .Kind = ItemKind_Weapon,
+        .Icon = GetTexture("icon_sword.png"),
+        .Texture = GetTexture("sword.png")
+    };
+    
+    gameState.ItemData[ItemId_Spear] = (ItemData){
+        .Id = ItemId_Spear,
+        .Kind = ItemKind_Weapon,
+        .Icon = GetTexture("icon_spear.png"),
+        .Texture = GetTexture("spear.png")
+    };
+
+    // :item :new
+}
+
+ItemData* ItemDataById(ItemId id)
+{
+    return &gameState.ItemData[id];
 }

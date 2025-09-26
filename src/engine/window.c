@@ -5,6 +5,9 @@ typedef struct WindowState
 {
     GLFWwindow* Handle;
     u32 Width, Height;
+
+    GLFWcursor* Arrow;
+    GLFWcursor* Hand;
 } WindowState;
 WindowState windowState;
 
@@ -110,8 +113,8 @@ boolean WindowCreate(const char* title, u32 width, u32 height)
     glfwSetMouseButtonCallback(windowState.Handle, _InputMouseButtonCallback);
     //glfwSetScrollCallback(windowState.Handle, _InputSc);
 
-   // windowState.cursor_arrow = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
-   // windowState.cursor_hand = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
+    windowState.Arrow = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
+    windowState.Hand = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
 
     //GL_CALL(glDisable(GL_DEPTH_TEST));
     //GL_CALL(glClearColor(0.0, 0.2, 0.8, 0.0));
@@ -119,6 +122,16 @@ boolean WindowCreate(const char* title, u32 width, u32 height)
     //GL_CALL(glEnable(GL_BLEND));
     
     return true;
+}
+
+void WindowSetCursorArrow(void)
+{
+    glfwSetCursor(windowState.Handle, windowState.Arrow);
+}
+
+void WindowSetCursorHand(void)
+{
+    glfwSetCursor(windowState.Handle, windowState.Hand);
 }
 
 void WindowPollEvents()
