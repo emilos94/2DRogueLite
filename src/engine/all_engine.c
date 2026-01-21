@@ -7,5 +7,8 @@
 #include "engine_math.c"
 #include "render.c"
 #include "string_utils.c"
+#include "datastructures.h"
+#include "arena.h"
+#include "arena.c"
 #include "file_util.c"
 #include "sound.c"

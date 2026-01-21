@@ -6,7 +6,9 @@
 #ifndef SOUND_H
 #define SOUND_H
 
+#define SOUND_SOURCE_NAME_CAPACITY 128
 typedef struct SoundSource {
+	char Name[SOUND_SOURCE_NAME_CAPACITY];
 	ALuint Buffer;
 	ALuint Source;
     boolean Valid;

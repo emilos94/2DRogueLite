@@ -40,3 +40,13 @@ Entity* EffectCreateGroundImpact(Vec2 position)
     effect->Position = Vec2Sub(position, Vec2Mulf(frameSize, 0.5));
     return effect;
 }
+
+Entity* EffectOneshotAnimation(Vec2 position, AnimationId id)
+{
+    Entity* effect = EntityCreate(EntityFlag_Animation | EntityFlag_IsEffect);
+    EntityAnimationStart(effect, id);
+    effect->DeleteOnAnimationFinish = true;
+    Vec2 frameSize = (Vec2){ AnimationFrameWidth(&effect->Animation), AnimationFrameWidth(&effect->Animation) };
+    effect->Position = Vec2Sub(position, Vec2Mulf(frameSize, 0.5));
+    return effect;
+}

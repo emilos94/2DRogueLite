@@ -3,6 +3,18 @@
 #include "assets.h"
 #include "entities/player.h"
 #include "rooms.h"
+#include "ui/ui.h"
+
+typedef struct AppState
+{
+    Arena ArenaFrame;
+    Arena ArenaPermanent;
+
+    f32 ElapsedTime;
+
+    Font Font;
+} AppState;
+AppState appState = {0};
 
 void GameInit()
 {
@@ -14,12 +26,15 @@ void GameInit()
     AssetsLoad();
     
     pthread_t backgroundThread;
-    s32 result = pthread_create(&backgroundThread, NULL, LoadResourcesBackground, (void*)(&gameState));
+    s32 result = pthread_create(&backgroundThread, NULL, LoadSoundResourcesBackground, (void*)(&gameState));
     
     gameState.IsRunning = true;
 
     // Register event listeners
     // RegisterEntityEventListener(RoomsOnEntityEvent);
+    RegisterEntityEventListener(GenericOnEntityEvent);
+
+    SetupItems();
 
     // Store index to start room
     Map map = GenerateMap(10, 10, 20);
@@ -80,10 +95,24 @@ void GameInit()
     gameState.map = map;
 
     InitNewGame();
+
+    appState.ArenaFrame = ArenaCreate(MB(10));
+    appState.ArenaPermanent = ArenaCreate(MB(10));
+
+    if (FileLoadFont(&appState.ArenaPermanent, appState.ArenaFrame, &appState.Font, "res/fonts/AtariFont16.fnt"))
+    {
+        appState.Font.Texture = GetTexture(appState.Font.TextureFile);
+    }
+
+    UIActionBarSetItem(0, ItemId_Sword);
+    UIActionBarSetItem(1, ItemId_Spear);
 }
 
 void GameUpdate(float delta)
 {
+    appState.ArenaFrame.Offset = 0;
+    appState.ElapsedTime += delta;
+
     if (gameState.GameMode == GameMode_GameOver)
     {
         if (KeyPressed(GLFW_KEY_ENTER))
@@ -121,21 +150,29 @@ void GameUpdate(float delta)
 
         UpdateBullets(delta);
 
+        // :system
         CollisionSystem(delta);
         MovementSystem(delta);
         AnimationSystem(delta);
         TimeToLiveSystem(delta);
+        EntityJumpingSystem(delta);
+        CollectibleSystem(delta);
 
         EntitiesUpdate(delta);
 
         ResolveEntityFrameEvents();
         EntityDestroySystem(delta);
 
+        // :ui updates
+        UIActionBarUpdate(delta);
     }
 }
 
 void GameRender(float delta)
-{   
+{
+    // :ui
+    gameState.UIHovered = false;
+
     Entity* player = EntityById(gameState.PlayerId);
 
     RenderStartFrame();
@@ -194,7 +231,7 @@ void GameRender(float delta)
         if (cmd)
         {
             cmd->FlipTextureX = entity->FlipTextureX;
-            cmd->ZLayer = 2;
+            cmd->ZLayer = ZLayer_Entity0;
             cmd->Rotation = entity->Rotation;
             cmd->Size = Vec2Mul(cmd->Size, entity->RenderScale);
 
@@ -213,7 +250,22 @@ void GameRender(float delta)
 
             if (entity->Flags & EntityFlag_RenderShadow)
             {
-                QuadDrawCmd* shadow = DrawTexture(entity->Position, GetTexture("shadow_small.png"));
+                Texture* shadowTexture = 0;
+                if (entity->ShadowSize == ShadowSize_Mini)
+                {
+                    shadowTexture = GetTexture("shadow_mini.png");
+                }
+                else
+                {
+                    shadowTexture = GetTexture("shadow_small.png");
+                }
+
+                QuadDrawCmd* shadow = DrawTexture(entity->Position, shadowTexture);
+                if (entity->Texture && entity->Texture->Width < shadowTexture->Width)
+                {
+                    shadow->Position.x -= (shadowTexture->Width - entity->Texture->Width) / 2;
+                }
+
                 shadow->Position.y -= 3;
                 shadow->ZLayer = 1;
                 shadow->Alpha = 0.5;
@@ -222,9 +274,19 @@ void GameRender(float delta)
 
         if (entity->Id.Index == gameState.PlayerId.Index)
         {
-            QuadDrawCmd* drawCmd = DrawTexture(entity->WeaponAnchor, GetTexture("sword.png"));
-            drawCmd->Rotation = entity->WeaponRotation;
-            drawCmd->ZLayer = 2;
+            if (gameState.ActionBarSelectedIndex != -1)
+            {
+                ActionBarSlot* slot = &gameState.ActionBarSlots[gameState.ActionBarSelectedIndex];
+                
+                if (slot->ItemId != ItemId_None)
+                {
+                    ItemData* itemData = ItemDataById(slot->ItemId);
+
+                    QuadDrawCmd* drawCmd = DrawTexture(entity->WeaponAnchor, itemData->Texture);
+                    drawCmd->Rotation = entity->WeaponRotation;
+                    drawCmd->ZLayer = ZLayer_Entity0;
+                }
+            }
         }
 
 #ifdef DEBUG
@@ -284,34 +346,75 @@ void GameRender(float delta)
     }
 #endif
 
-    // ui
+    // :ui render
     // player health bar
     if (player)
     {
         u32 width = 64;
         u32 height = 10;
         u32 padding = 2;
+
+        f32 y0 = RESOLUTION_HEIGHT - (height + padding);
+
         QuadDrawCmd* healthBarBack = DrawQuad(
-            (Vec2) { padding, RESOLUTION_HEIGHT - (height + padding) },
+            (Vec2) { padding, y0 },
             (Vec2) { width, height},
             (Vec3) {1.0, 0.2, 0.2}
         );
         healthBarBack->ZLayer = ZLayer_UI0;
         
         QuadDrawCmd* healthBarFront= DrawQuad(
-            (Vec2) { padding, RESOLUTION_HEIGHT - (height + padding) },
+            (Vec2) { padding, y0 },
             (Vec2) { width * (player->Health) / 5, height},
             (Vec3) { 0.2, 1.0, 0.2}
         );
         healthBarFront->ZLayer = ZLayer_UI1;
+
+        f32 x0 = healthBarBack->Position.x + healthBarBack->Size.x + padding * 2;
+
+        Texture* coinTexture = GetTexture("coin_8x8.png");
+        DrawTexture(V2(x0, y0), coinTexture);
+        x0 += coinTexture->Width + padding;
+
+        char* coinTextBuffer = ArenaPushArr(&appState.ArenaFrame, char, 10);
+        snprintf(coinTextBuffer, 10, "%d", gameState.CoinCount);
+        Text* coinText = DrawText(&appState.Font, StringLit(coinTextBuffer), V2(x0, y0), 0.4);
+
+    }
+
+    UIActionBarRender(delta);
+    
+    if (gameState.GameMode == GameMode_GameOver)
+    {
+        Text* gameOverText = DrawText(&appState.Font, StringLit("Game Over"), V2(0, 0), 1.0);
+        gameOverText->Position.x = RESOLUTION_WIDTH / 2 - gameOverText->Size.x / 2;
+        gameOverText->Position.y = RESOLUTION_HEIGHT - 45;
+
+        gameState.GameOverhintTextAlpha = sin(appState.ElapsedTime) * 0.5 + 0.5;
+
+        Text* hintText = DrawText(&appState.Font, StringLit("Press 'enter' to retry"), V2(0, 0), 0.5);
+        hintText->Position.x = RESOLUTION_WIDTH / 2 - hintText->Size.x / 2;
+        hintText->Position.y = RESOLUTION_HEIGHT - 90;
+        hintText->Alpha = gameState.GameOverhintTextAlpha;
     }
     RenderEndFrame();
+
+    if (gameState.UIHovered)
+    {
+        WindowSetCursorHand();
+    }
+    else
+    {
+        WindowSetCursorArrow();
+    }
 }
 
 void GameDestroy()
 {
     AssetsDestroy();
     free(gameState.map.RoomIds);
+    free(appState.ArenaFrame.Buffer);
+    free(appState.ArenaPermanent.Buffer);
 }
 
 boolean GameRunning()

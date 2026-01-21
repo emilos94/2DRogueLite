@@ -6,8 +6,17 @@ typedef struct AssetState
     u32 TextureCount;
 
     AnimationData AnimationData[AnimationId_COUNT];
+
+    SoundSource* Sounds;
+    u32 SoundCount;
 } AssetState;
 AssetState assetState;
+SoundSource _sound_source_empty = (SoundSource){
+    .Buffer = 0,
+    .Source = 0,
+    .Valid = false,
+    .Name = 0
+};
 
 void LoadTextures(void)
 {
@@ -102,6 +111,74 @@ void SetupAnimationData(void)
         .SecondsPerFrame = 0.1,
         .Texture = GetTexture("ground_impact_effect.png")
     };
+
+    assetState.AnimationData[AnimationId_EffectSpear] = (AnimationData) {
+        .TextureFrameCount = 3,
+        .FrameIndexStart = 0,
+        .FrameIndexEnd = 2,
+        .SecondsPerFrame = 0.085,
+        .Texture = GetTexture("spear_effect.png")
+    };
+ 
+    assetState.AnimationData[AnimationId_EffectSpearSmall] = (AnimationData) {
+        .TextureFrameCount = 3,
+        .FrameIndexStart = 0,
+        .FrameIndexEnd = 2,
+        .SecondsPerFrame = 0.085,
+        .Texture = GetTexture("spear_effect_small.png")
+    };
+}
+
+void LoadSounds(void)
+{
+    struct dirent *de;  // Pointer for directory entry
+    const char* relativePath = "res/sounds/";
+    u32 relativePathLength = strlen(relativePath);
+    DIR *dr = opendir(relativePath);
+
+    if (!dr) 
+    {
+        printf("Failed to load sounds!\n");
+        assert(false);
+    }
+    char path[512] = {0};
+    char* fileBuffer = 0;
+
+    int numberOfSounds = 0;
+    while((de = readdir(dr)) != NULL) 
+    {
+        if (StringEndswith(de->d_name, ".wav")) 
+        {
+            numberOfSounds++;
+        }
+    }
+    closedir(dr);
+    
+    assetState.SoundCount = numberOfSounds;
+    assetState.Sounds = malloc(assetState.SoundCount * sizeof(SoundSource));
+
+    // Reopen to reset offset
+    dr = opendir(relativePath);
+    s32 idx = 0;
+    while((de = readdir(dr)) != NULL) 
+    {
+        if (StringEndswith(de->d_name, ".wav")) 
+        {
+            memcpy(path, relativePath, relativePathLength);
+            memcpy(path + relativePathLength, de->d_name, de->d_namlen);
+
+            assert(de->d_namlen < SOUND_SOURCE_NAME_CAPACITY);
+            
+            assetState.Sounds[idx] = SoundLoad(path);
+            
+            SoundSource* sound = assetState.Sounds + idx;
+            memcpy(sound->Name, de->d_name, de->d_namlen);
+           
+            memset(path, 0, 512);
+            idx++;
+        }
+    }
+    closedir(dr);
 }
 
 void AssetsLoad(void)
@@ -129,13 +206,31 @@ Texture* GetTexture(const char* path)
         Texture* texture = assetState.Textures + i;
         // note: if str eq ever becomes a problem, precompute hash ?
         // Probably wont, only use this on entity creation
-        if (StringEquals(path, texture->Name))
+        if (CharsEquals(path, texture->Name))
         {
             return texture;
         }
     }
 
     assert(false);
+}
+
+SoundSource* GetSound(const char* name)
+{
+    assert(name);
+
+    for (s32 i = 0; i < assetState.SoundCount; i++)
+    {
+        SoundSource* sound = assetState.Sounds + i;
+        // note: if str eq ever becomes a problem, precompute hash ?
+        // Probably wont, only use this on entity creation
+        if (CharsEquals(name, sound->Name))
+        {
+            return sound;
+        }
+    }
+
+    return &_sound_source_empty;
 }
 
 AnimationData* GetAnimation(AnimationId id)

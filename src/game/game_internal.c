@@ -1,11 +1,9 @@
 #include "game_internal.h"
 
-void* LoadResourcesBackground(void* arguments)
+void* LoadSoundResourcesBackground(void* arguments)
 {
     SoundInit();
-
-    GameState* gameState = (GameState*)arguments;
-    gameState->TestSound = SoundLoad("res/sounds/strike_blade_medium_003.wav");
+    LoadSounds();
 
     printf("Thread done, returning!\n");
     return NULL;
@@ -91,6 +89,8 @@ void EntitiesUpdate(f32 delta)
 
 void InitNewGame(void)
 {
+    memset(GetEntities(), 0, sizeof(Entity) * ENTITY_CAPACITY);
+
     // :player
     Entity* player = EntityCreate(EntityFlag_Moving | EntityFlag_Solid | EntityFlag_Animation | EntityFlag_RenderShadow | EntityFlag_HasHealth);
     player->Texture = GetTexture("player.png");
@@ -103,12 +103,13 @@ void InitNewGame(void)
     player->WeaponAnchor = (Vec2) { 11, 7 };
     player->WeaponSwipe = 0.67;
     player->WeaponExtraRotation = 0;
-    player->SwingSpeed = 0.2;
+    player->AttackSpeed = 0.2;
     player->Kind = EntityKind_Player;
     player->Health = 5;
     player->AttackCooldown = 0.5;
     player->AttackTimer = 0.0;
     player->RoomId = gameState.CurrentRoomId;
+    player->ShadowSize = ShadowSize_Small;
 
     gameState.PlayerId = player->Id;
 
@@ -125,7 +126,8 @@ void InitNewGame(void)
 void GameOver(void)
 {
     gameState.GameMode = GameMode_GameOver;
-    memset(GetEntities(), 0, sizeof(Entity) * ENTITY_CAPACITY);
+    gameState.CoinCount = 0;
+    gameState.GameOverhintTextAlpha = 1.0;
 }
 
 // :entity :start
@@ -172,60 +174,41 @@ void SlimeCallback(Entity* slime, f32 delta)
         slime->JumpTimer += delta;
         if (slime->JumpTimer >= slime->JumpCooldown)
         {
-            slime->JumpTimer = 0;
-            slime->IsJumping = true;
-            slime->RenderScale.x = 0.7;
-            slime->RenderScale.y = 1.5;
-            slime->JumpDriver = 0;
-
-            slime->JumpStartPos = slime->Position;
-            slime->JumpTarget = RandomVec2InRange(slime->Position, 40);
-
             Room* currentRoom = RoomById(gameState.CurrentRoomId);
 
+            slime->JumpTarget = RandomVec2InRange(slime->Position, 40);
             while(slime->JumpTarget.x <= 8 || slime->JumpTarget.x >= currentRoom->TileCountX * TILE_PIXEL_SIZE - 16 || slime->JumpTarget.y <= 8 || slime->JumpTarget.y >= currentRoom->TileCountY * TILE_PIXEL_SIZE - 16)
             {
                 slime->JumpTarget = RandomVec2InRange(slime->Position, 40);
             }
+
+            EntityJumpTo(slime, slime->JumpTarget, slime->JumpHeight);
         }
     }
-    else
+}
+
+// :slime
+void OnSlimeLandCallback(Entity* slime, f32 delta)
+{
+    Vec2 centerPos = EntityCenterPos(slime);
+    centerPos.y -= 5;
+    Entity* groundImpact = EffectCreateGroundImpact(centerPos);
+    groundImpact->RoomId = slime->RoomId;
+
+    Bullet* left = CreateBullet(slime->Position, V2(-BULLET_DEFAULT_SPEED, 0));
+    Bullet* right = CreateBullet(slime->Position, V2(BULLET_DEFAULT_SPEED, 0));
+    Bullet* up = CreateBullet(slime->Position, V2(0, BULLET_DEFAULT_SPEED));
+    Bullet* down = CreateBullet(slime->Position, V2(0, -BULLET_DEFAULT_SPEED));
+
+    f32 range = 20;
+    Entity* result[10];
+    u32 count = EntityQueryInRange(centerPos, range, slime->Id, &result[0], 10);
+    for (u32 i = 0; i < count; i++)
     {
-        slime->JumpDriver += delta;
-        f32 progress = slime->JumpDriver / slime->JumpTime;
-        slime->Position = Vec2Lerp(slime->JumpStartPos, slime->JumpTarget, progress);
-
-        // parabular
-        slime->RenderOffsetY = -4.0 * slime->JumpHeight * (progress * progress - progress);
-
-        if (slime->JumpDriver >= slime->JumpTime)
+        if (result[i]->Kind == EntityKind_Player)
         {
-            slime->RenderOffsetY = 0;
-            slime->JumpDriver = 0;
-            slime->IsJumping = false;
-            slime->RenderScale.x = 1.7;
-            slime->RenderScale.y = 0.4;
-            Vec2 centerPos = EntityCenterPos(slime);
-            centerPos.y -= 5;
-            Entity* groundImpact = EffectCreateGroundImpact(centerPos);
-            groundImpact->RoomId = slime->RoomId;
-
-            Bullet* left = CreateBullet(slime->Position, V2(-BULLET_DEFAULT_SPEED, 0));
-            Bullet* right = CreateBullet(slime->Position, V2(BULLET_DEFAULT_SPEED, 0));
-            Bullet* up = CreateBullet(slime->Position, V2(0, BULLET_DEFAULT_SPEED));
-            Bullet* down = CreateBullet(slime->Position, V2(0, -BULLET_DEFAULT_SPEED));
-
-            f32 range = 20;
-            Entity* result[10];
-            u32 count = EntityQueryInRange(centerPos, range, slime->Id, &result[0], 10);
-            for (u32 i = 0; i < count; i++)
-            {
-                if (result[i]->Kind == EntityKind_Player)
-                {
-                    EntityReceiveDamage(result[i], Vec2Direction(centerPos, result[i]->Position), 2.5, 1);
-                    result[i]->FlashColor = (Vec3) { .x = 0.8, .y = 0.3, .z = 0.3 };
-                }
-            }
+            EntityReceiveDamage(result[i], Vec2Direction(centerPos, result[i]->Position), 2.5, 1);
+            result[i]->FlashColor = (Vec3) { .x = 0.8, .y = 0.3, .z = 0.3 };
         }
     }
 }
@@ -251,12 +234,62 @@ void EntityReceiveDamage(Entity* entity, Vec2 direction, f32 knockBackAmount, f3
     entity->KnockBackAmount = knockBackAmount;
     entity->KnockBackDirection = direction;
     entity->Health -= damage;
+
+    if (entity->OnReceiveDamageSound)
+    {
+        SoundSource* sound = GetSound(entity->OnReceiveDamageSound);
+        SoundPlay(sound);
+    }
+}
+
+// :entity
+void EntityJumpTo(Entity* entity, Vec2 position, f32 jumpHeight)
+{
+    assert(entity);
+    assert(entity->Flags & EntityFlag_Jump);
+
+    entity->JumpTimer = 0;
+    entity->IsJumping = true;
+    entity->RenderScale.x = 0.7;
+    entity->RenderScale.y = 1.5;
+    entity->JumpDriver = 0;
+    entity->JumpStartPos = entity->Position;
+    entity->JumpTarget = position;
+    entity->JumpHeight = jumpHeight;
+}
+
+// :entity :event
+void GenericOnEntityEvent(EntityId entityId, EntityEvent event)
+{
+    Entity* entity = EntityById(entityId);
+
+    if (!entity)
+    {
+        return;
+    }
+
+    if (event == EntityEvent_Created)
+    {
+        entity->CreatedTime = gameState.ElapsedTime;
+    }
+
+    if (event == EntityEvent_Destroyed && entity->Kind == EntityKind_Enemy)
+    {
+        for (s32 i = 0; i < 3; i++)
+        {
+            EntityCoinCreate(entity->Position);
+        }
+    }
 }
 
 // :slime
 Entity* EntitySlimeCreate(Vec2 position)
 {
-    Entity* slime = EntityCreate(EntityFlag_Moving | EntityFlag_Solid | EntityFlag_Render | EntityFlag_HasHealth | EntityFlag_RenderShadow);
+    Entity* slime = EntityCreate(
+        EntityFlag_Moving | EntityFlag_Solid | EntityFlag_Render | 
+        EntityFlag_HasHealth | EntityFlag_RenderShadow | EntityFlag_Jump
+    );
+
     slime->Texture = GetTexture("slime.png");
     slime->Position = position;
     slime->BoundingBox = (BoundingBox){ .Offset = {5, 0}, .Size = {6, 6} };
@@ -265,13 +298,76 @@ Entity* EntitySlimeCreate(Vec2 position)
     slime->Health = 3;
     slime->OnEntityDestroy = SpawnCorpse;
     slime->CustomCallback = SlimeCallback;
+    slime->OnLandFromJumpCallback = OnSlimeLandCallback;
 
     slime->JumpCooldown = 3.0;
     slime->JumpTime = 1.0;
     slime->JumpTimer = RandF32Between(0, 1);
     slime->JumpHeight = 20.0;
 
+    slime->OnReceiveDamageSound = "receive_dmg.wav";
+    slime->ShadowSize = ShadowSize_Small;
+
     return slime;
+}
+
+// :skeleton
+void SkeletonCallback(Entity* skeleton, f32 delta)
+{
+    Entity* player = EntityById(gameState.PlayerId);
+    if (Vec2Distance(player->Position, skeleton->Position) <= 100)
+    {
+        Vec2 dirToPlayer = Vec2Direction(skeleton->Position, player->Position);
+        skeleton->Velocity = Vec2Mulf(dirToPlayer, 30);
+        skeleton->IsPrimaryActionActive = true;
+    }
+    else
+    {
+        skeleton->IsPrimaryActionActive = false;
+    }
+
+    if (skeleton->PrimaryActionTimer > 0 && skeleton->IsPrimaryActionActive)
+    {
+        skeleton->PrimaryActionTimer -= delta;
+        printf("%.2f\n", skeleton->PrimaryActionTimer);
+
+        if (skeleton->PrimaryActionTimer <= 0)
+        {
+            printf("Skeleton primary action!\n");
+            Vec2 dirToPlayer = Vec2Direction(skeleton->Position, player->Position);
+            Bullet* bullet = CreateBullet(skeleton->Position, Vec2Mulf(dirToPlayer, BULLET_DEFAULT_SPEED));
+        
+            skeleton->RenderScale.x = 1.5;
+            skeleton->RenderScale.y = 0.7;
+        
+            skeleton->PrimaryActionTimer = 5;
+        }
+    }
+}
+
+
+// :skeleton
+Entity* EntitySkeletonCreate(Vec2 position)
+{
+    Entity* skeleton = EntityCreate(
+        EntityFlag_Moving | EntityFlag_Solid | EntityFlag_Render | 
+        EntityFlag_HasHealth | EntityFlag_RenderShadow | EntityFlag_FlipXOnMove
+    );
+
+    skeleton->Texture = GetTexture("skeleton.png");
+    skeleton->Position = position;
+    skeleton->BoundingBox = (BoundingBox){ .Offset = {5, 0}, .Size = {12, 20} };
+    skeleton->Size = (Vec2) {12, 25};
+    skeleton->Kind = EntityKind_Enemy;
+    skeleton->Health = 3;
+    skeleton->OnEntityDestroy = SpawnCorpse;
+    skeleton->CustomCallback = SkeletonCallback;
+
+    skeleton->OnReceiveDamageSound = "receive_dmg.wav";
+    skeleton->ShadowSize = ShadowSize_Small;
+    skeleton->PrimaryActionTimer = 1;
+
+    return skeleton;
 }
 
 Entity* EntityGateCreate(Vec2 position)
@@ -284,6 +380,55 @@ Entity* EntityGateCreate(Vec2 position)
     door->Size = (Vec2) { door->Texture->Width, door->Texture->Height };
     door->BoundingBox.Size = door->Size;
     return door;
+}
+
+// :coin
+void CoinCallback(Entity* coin, f32 delta)
+{
+    if (!coin->IsJumping)
+    {
+        coin->RenderOffsetY = 2 + sin(gameState.ElapsedTime) * 2.0 - 1.0 * 4;
+    }
+}
+
+// :coin
+void CoinCollisionCallback(Entity* coin, Entity* other)
+{
+    assert(coin);
+    assert(other);
+
+    if (other->Kind == EntityKind_Player)
+    {
+        EntityQueueDestroy(coin->Id);
+        gameState.CoinCount++;
+        SoundPlay(GetSound("small_pickup.wav"));
+    }
+}
+
+// :coin
+Entity* EntityCoinCreate(Vec2 position)
+{
+    Entity* coin = EntityCreate(
+        EntityFlag_Render | EntityFlag_Collectible | EntityFlag_Jump | 
+        EntityFlag_RenderShadow | EntityFlag_Collider
+    );
+    
+    coin->Kind = EntityKind_Loot;
+    coin->Texture = GetTexture("coin_8x8.png");
+    coin->Position = position;
+    coin->BoundingBox = (BoundingBox) { .Offset = {0, 0}, .Size = {8, 8} };
+    
+    coin->JumpTime = 1.0;
+    Vec2 jumpTarget = RandomVec2InRange(position, 30);
+    EntityJumpTo(coin, jumpTarget, 10);
+
+    coin->CustomCallback = CoinCallback;
+    coin->OnCollision = CoinCollisionCallback;
+
+    coin->ShadowSize = ShadowSize_Mini;
+    coin->PickupRange = 30;
+
+    return coin;
 }
 
 // :entity :end
@@ -369,10 +514,17 @@ void SwitchToRoom(Direction directionFrom, Room* room)
 
     if (!room->IsVisited)
     {
-        for (s32 i = 0; i < 5; i++)
+        for (s32 i = 0; i < 3; i++)
         {
             Vec2 pos = RandomPositionInLevel();
             Entity* slime = EntitySlimeCreate(pos);
+            slime->RoomId = room->Id;
+        }
+
+        for (s32 i = 0; i < 3; i++)
+        {
+            Vec2 pos = RandomPositionInLevel();
+            Entity* slime = EntitySkeletonCreate(pos);
             slime->RoomId = room->Id;
         }
 
@@ -494,6 +646,7 @@ Map GenerateMap(u32 roomCountX, u32 roomCountY, u32 roomsToPlace)
     room->MapY = roomCountY / 2 - 1;
     result.RoomIds[room->MapY * roomCountX + room->MapX] = room->Id;
     result.StartingRoomId = room->Id;
+    room->IsVisited = true;
 
     u32 roomsPlaced = 0;
     while(roomsPlaced < roomsToPlace)
@@ -611,6 +764,7 @@ Bullet* CreateBullet(Vec2 Position, Vec2 Velocity)
             bullet->Position = Position;
             bullet->Size = V2(8, 8);
             bullet->Velocity = Velocity;
+            bullet->RoomId = gameState.CurrentRoomId;
             return bullet;
         }
     }
@@ -626,7 +780,7 @@ void UpdateBullets(f32 delta)
     for (s32 i = 0; i < BULLET_CAPACITY; i++)
     {
         Bullet* bullet = gameState.Bullets + i;
-        if (bullet->TimeToLive <= 0)
+        if (bullet->TimeToLive <= 0 || bullet->RoomId != gameState.CurrentRoomId)
         {
             continue;
         }
@@ -662,7 +816,7 @@ void RenderBullets()
     for (s32 i = 0; i < BULLET_CAPACITY; i++)
     {
         Bullet* bullet = gameState.Bullets + i;
-        if (bullet->TimeToLive <= 0)
+        if (bullet->TimeToLive <= 0 || bullet->RoomId != gameState.CurrentRoomId)
         {
             continue;
         }
@@ -670,6 +824,31 @@ void RenderBullets()
         QuadDrawCmd* cmd = DrawTexture(bullet->Position, texture);
         cmd->ColorOverwrite = 1;
         cmd->Color = COLOR_WHITE;
-        cmd->ZLayer = ZLayer_Entity;
+        cmd->ZLayer = ZLayer_Entity0;
     }
+}
+
+// :items
+void SetupItems()
+{
+    gameState.ItemData[ItemId_Sword] = (ItemData){
+        .Id = ItemId_Sword,
+        .Kind = ItemKind_Weapon,
+        .Icon = GetTexture("icon_sword.png"),
+        .Texture = GetTexture("sword.png")
+    };
+    
+    gameState.ItemData[ItemId_Spear] = (ItemData){
+        .Id = ItemId_Spear,
+        .Kind = ItemKind_Weapon,
+        .Icon = GetTexture("icon_spear.png"),
+        .Texture = GetTexture("spear.png")
+    };
+
+    // :item :new
+}
+
+ItemData* ItemDataById(ItemId id)
+{
+    return &gameState.ItemData[id];
 }

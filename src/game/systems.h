@@ -9,5 +9,7 @@ void CollisionSystem(f32 delta);
 void AnimationSystem(f32 delta);
 void TimeToLiveSystem(f32 delta);
 void EntityDestroySystem(f32 delta);
+void EntityJumpingSystem(f32 delta);
+void CollectibleSystem(f32 delta);
 
 #endif

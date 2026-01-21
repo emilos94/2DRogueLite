@@ -161,7 +161,11 @@ void SoundPlay(SoundSource* sound)
     }
 
     assert(sound);
-    assert(sound->Valid);
+
+    if (!sound->Valid)
+    {
+        return;
+    }
 
     AL_CALL(alSourcePlay(sound->Source));
 }

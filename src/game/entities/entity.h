@@ -25,6 +25,8 @@ enum EntityFlags
     EntityFlag_HasHealth = 1 << 8,
     EntityFlag_RenderShadow = 1 << 9,
     EntityFlag_Collider = 1 << 10,
+    EntityFlag_Collectible = 1 << 11,
+    EntityFlag_Jump = 1 << 12,
 };
 typedef u64 EntityFlags;
 
@@ -33,6 +35,7 @@ enum EntityKind
     EntityKind_None,
     EntityKind_Player,
     EntityKind_Enemy,
+    EntityKind_Loot,
     EntityKind_COUNT
 };
 typedef u32 EntityKind;
@@ -80,6 +83,13 @@ enum Direction
 typedef u8 Direction;
 Direction DirectionOpposite(Direction direction);
 
+enum ShadowSize
+{
+    ShadowSize_Mini,
+    ShadowSize_Small
+};
+typedef u8 ShadowSize;
+
 typedef struct RoomSwitchData
 {
     s32 ConnectedRoom;
@@ -101,7 +111,14 @@ typedef struct Entity
     f32 Rotation;
     Texture* Texture;
 
+    f32 CreatedTime;
+
+    // pickup data
+    f32 PickupRange;
+    boolean IsBeingPickedUp;
+
     f32 InvulnerableTimer;
+    ShadowSize ShadowSize;
 
     boolean QueuedForDestruction;
 
@@ -117,6 +134,13 @@ typedef struct Entity
     f32 Health;
 
     Direction DoorDirection;
+
+    f32 PrimaryActionTimer;
+    boolean IsPrimaryActionActive;
+    f32 SecondaryActionTimer;
+    boolean IsSecondaryActionActive;
+
+    boolean ChasingPlayer;
 
     // Jumping
     boolean IsJumping;
@@ -152,14 +176,15 @@ typedef struct Entity
     // Move into gamestate?
     // Note: Have weapon as standalone entity ?
     Vec2 WeaponAnchor;
+    Vec2 WeaponAncorOffset;
     f32 WeaponRotation;
     f32 WeaponExtraRotation;
     boolean WeaponUp;
-    boolean WeaponSwinging;
+    boolean WeaponAttacking;
     f32 WeaponOffsetDriver;
-    f32 WeaponSwingTimer;
+    f32 WeaponAttackTimer;
     f32 WeaponSwipe;
-    f32 SwingSpeed;
+    f32 AttackSpeed;
     f32 AttackTimer;
     f32 AttackCooldown;
 
@@ -170,7 +195,11 @@ typedef struct Entity
     // Callbacks
     EntityCallback OnEntityDestroy;
     EntityCallback CustomCallback;
+    EntityCallback OnLandFromJumpCallback;
     EntityCollisionCallback OnCollision;
+
+    // Sounds
+    const char* OnReceiveDamageSound;
 } Entity;
 
 Entity* GetEntities(void);

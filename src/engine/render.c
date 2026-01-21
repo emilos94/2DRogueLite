@@ -26,22 +26,31 @@ typedef struct RenderState
     QuadDrawCmd* DrawCommands;
     u32 QuadCapacity;
 
+    Text* TextCommands;
+    u32 TextCommandCount;
+
     u32 TextureCount;
     u32 TextureIndices[16];
 } RenderState;
 
 RenderState renderState = {};
 
+#define TEXT_COMMAND_CAPACITY 100
+
 boolean RenderInit(u32 quadCapacity)
 {
     renderState.QuadCapacity = quadCapacity;
     renderState.QuadCount = 0;
+    renderState.TextCommandCount = 0;
 
     renderState.Vertices = malloc(quadCapacity * 4 * sizeof(QuadVertex));
     memset(renderState.Vertices, 0, quadCapacity * 4 * sizeof(QuadVertex));
 
     renderState.DrawCommands = malloc(quadCapacity * sizeof(QuadDrawCmd));
     memset(renderState.DrawCommands, 0, quadCapacity * sizeof(QuadDrawCmd));
+
+    renderState.TextCommands = malloc(TEXT_COMMAND_CAPACITY * sizeof(Text));
+    memset(renderState.TextCommands, 0, TEXT_COMMAND_CAPACITY * sizeof(Text));
 
     VertexBufferLayoutElement layout[] = {
         { .Type = GL_FLOAT, .ByteSize = sizeof(f32), .ElementCount = 2 },        // Position
@@ -150,6 +159,7 @@ void RenderDestroy()
 {
     free(renderState.Vertices);
     free(renderState.DrawCommands);
+    free(renderState.TextCommands);
 
     VertexArrayDestroy(&renderState.VertexArray);
     ShaderDestroy(&renderState.Shader);
@@ -189,7 +199,59 @@ int QuadDrawCmdCompare(const void* a, const void* b)  {
     return 0;
 }
 
-void Flush()
+void FlushText()
+{
+    if (renderState.TextCommandCount == 0)
+    {
+        return;
+    }
+
+    for (s32 i = 0; i < renderState.TextCommandCount; i++)
+    {
+        Text* text = renderState.TextCommands + i;
+        Font* font = text->Font;
+        Texture* texture = font->Texture;
+
+        f32 xCursor = text->Position.x;
+        f32 yCursor = text->Position.y;
+
+        for (s32 j = 0; j < text->Text.Length; j++)
+        {
+            char c = text->Text.Chars[j];
+            CharacterInfo* charInfo = FontGetCharInfo(font, c);
+
+            Vec2 uvMin = V2(
+                charInfo->X / (f32)font->Width,
+                1.0 - ((charInfo->Y + charInfo->Height) / (f32)font->Height)
+            );
+
+            Vec2 uvMax = V2(
+                (charInfo->X + charInfo->Width) / (f32)font->Width,
+                1.0 - (charInfo->Y / (f32)font->Height)
+            );
+
+            f32 y0 = yCursor + font->LineHeight * text->Scale;
+            y0 -= charInfo->YOffset * text->Scale;
+            y0 -= charInfo->Height * text->Scale;
+
+            QuadDrawCmd* letter = DrawTexture(V2(xCursor, y0), texture);
+            letter->UvMin = uvMin;
+            letter->UvMax = uvMax;
+            letter->Size.x = charInfo->Width * text->Scale;
+            letter->Size.y = charInfo->Height * text->Scale;
+            letter->ZLayer = text->ZLayer;
+            letter->Color = text->Color;
+            letter->ColorOverwrite = 1.0;
+            letter->Alpha = text->Alpha;
+
+            xCursor += charInfo->XAdvance * text->Scale;
+        }
+    }
+
+    renderState.TextCommandCount = 0;
+}
+
+void FlushQuads()
 {
     if (renderState.QuadCount == 0)
     {
@@ -198,9 +260,9 @@ void Flush()
 
     qsort(renderState.DrawCommands, renderState.QuadCount, sizeof(QuadDrawCmd), QuadDrawCmdCompare);
 
-    for (int i = 0; i < renderState.QuadCount; i++)
+    for (s32 i = 0; i < renderState.QuadCount; i++)
     {
-        uint32_t vertexOffset = i * 4;
+        u32 vertexOffset = i * 4;
         QuadDrawCmd* cmd = renderState.DrawCommands + i;
 
         f32 uvXMin = cmd->FlipTextureX ? cmd->UvMax.x : cmd->UvMin.x;
@@ -277,7 +339,8 @@ void Flush()
 
 void RenderEndFrame()
 {
-    Flush();
+    FlushText();
+    FlushQuads();
 
     VertexArrayUnbind();
     ShaderProgramUnbind();
@@ -350,7 +413,7 @@ QuadDrawCmd* DrawQuad(Vec2 bottomLeft, Vec2 size, Vec3 color)
 {
     if (renderState.QuadCount == renderState.QuadCapacity - 1)
     {
-        Flush();
+        FlushQuads();
     }
 
     QuadDrawCmd* cmd = renderState.DrawCommands + renderState.QuadCount;
@@ -370,12 +433,11 @@ QuadDrawCmd* DrawQuad(Vec2 bottomLeft, Vec2 size, Vec3 color)
     return cmd;
 }
 
-
 QuadDrawCmd* DrawTexture(Vec2 bottomLeft, Texture* texture)
 {
     if (renderState.QuadCount == renderState.QuadCapacity - 1)
     {
-        Flush();
+        FlushQuads();
     }
     
     s32 textureIndex = -1;
@@ -394,7 +456,7 @@ QuadDrawCmd* DrawTexture(Vec2 bottomLeft, Texture* texture)
     {
         if (textureCapacityExceeded)
         {
-            Flush();
+            FlushQuads();
         }
 
         renderState.TextureIndices[renderState.TextureCount] = texture->Id;
@@ -418,4 +480,52 @@ QuadDrawCmd* DrawTexture(Vec2 bottomLeft, Texture* texture)
     renderState.QuadCount++;
 
     return cmd;
+}
+
+Text* DrawText(Font* font, String text, Vec2 position, f32 fontSize)
+{
+    if (renderState.TextCommandCount >= TEXT_COMMAND_CAPACITY) 
+    {
+        FlushText();
+    }
+
+    Text* result = renderState.TextCommands + renderState.TextCommandCount;
+    renderState.TextCommandCount++;
+
+    result->Text = text;
+    result->Position = position;
+    result->Font = font;
+    result->Scale = fontSize;
+    result->Color = (Vec3){ 1, 1, 1 };
+    result->Alpha = 1;
+
+    result->Size.y = font->LineHeight * fontSize;
+
+    // todo: Implement max line width and line wrapping
+    f32 currentLineWidth = 0;
+    for (s32 i = 0; i < text.Length; i++)
+    {
+        char c = text.Chars[i];
+        
+        CharacterInfo* info = FontGetCharInfo(font, c);
+        currentLineWidth += info->XAdvance * fontSize;
+    }
+    result->Size.x = currentLineWidth;
+
+    return result;
+}
+
+CharacterInfo* FontGetCharInfo(Font* font, char c)
+{
+    assert(font);
+
+    for (CharacterInfo* charInfo = font->CharacterInfoFirst; charInfo; charInfo = charInfo->Next)
+    {
+        if (charInfo->Id == c)
+        {
+            return charInfo;
+        }
+    }
+
+    assert(false);
 }

@@ -30,7 +30,9 @@
         "game_util.h": "c",
         "entity.h": "c",
         "effects.h": "c",
-        "rooms.h": "c"
+        "rooms.h": "c",
+        "algorithm": "cpp",
+        "items.h": "c"
     },
     "launches": {
         "DebugLaunch": "Debug (gdb) Launch"

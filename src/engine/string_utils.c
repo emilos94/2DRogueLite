@@ -25,13 +25,11 @@ boolean StringEndswith(const char* str, const char* postfix)
     return true;
 }
 
-boolean StringEquals(const char* strA, const char* strB)
+
+boolean _CharsEquals(char* strA, u32 strALength, char* strB, u32 strBLength)
 {
     assert(strA);
     assert(strB);
-
-    u32 strALength = strlen(strA);
-    u32 strBLength = strlen(strB);
 
     if (strALength != strBLength)
     {
@@ -52,4 +50,20 @@ boolean StringEquals(const char* strA, const char* strB)
     }
 
     return true;
+}
+
+boolean CharsEquals(const char* strA, const char* strB)
+{
+    return _CharsEquals(strA, strlen(strA), strB, strlen(strB));
+}
+
+boolean StringEquals(String a, String b)
+{
+    return _CharsEquals(a.Chars, a.Length, b.Chars, b.Length);
+}
+
+boolean CharIsWhiteSpace(char c)
+{
+    boolean result = c == ' ' || c == '\n' || c == '\r' || c == '\t';
+    return result;
 }

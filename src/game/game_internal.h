@@ -2,6 +2,7 @@
 #include "entities/entity.h"
 #include "entities/effects.h"
 #include "rooms.h"
+#include "items.h"
 
 #include <pthread.h>
 
@@ -14,6 +15,8 @@
 #define RESOLUTION_VEC2_HALF ((Vec2) {RESOLUTION_WIDTH / 2, RESOLUTION_HEIGHT / 2})
 
 #define PLAYER_INVULNERABLE_ON_DMG_TIME 0.3
+
+#define ACTION_BAR_SLOTS 10
 
 #define COLOR_WHITE ((Vec3){1,1,1})
 
@@ -46,7 +49,8 @@ enum ZLayer
 {
     ZLayer_Ground,
     ZLayer_Tiles,
-    ZLayer_Entity,
+    ZLayer_Entity0,
+    ZLayer_Entity1,
     ZLayer_UI0,
     ZLayer_UI1
 };
@@ -66,6 +70,7 @@ typedef struct Bullet
     Vec2 Size;
     Vec2 Velocity;
     f32 TimeToLive;
+    s32 RoomId;
 } Bullet;
 #define BULLET_CAPACITY 248
 #define BULLET_DEFAULT_SPEED 100
@@ -74,6 +79,15 @@ Bullet* CreateBullet(Vec2 Position, Vec2 Velocity);
 void UpdateBullets(f32 delta);
 void RenderBullets();
 
+// :ui
+typedef struct ActionBarSlot
+{
+    u32 Index;
+    ItemId ItemId;
+    u32 Count;
+} ActionBarSlot;
+
+// :gamestate
 typedef struct GameState 
 {
     Texture Texture;
@@ -96,18 +110,34 @@ typedef struct GameState
     Map map;
 
     Bullet Bullets[BULLET_CAPACITY];
+
+    u32 CoinCount;
+
+    f32 GameOverhintTextAlpha;
+
+    ItemData ItemData[ItemId_COUNT];
+
+    // :ui
+    boolean UIHovered;
+
+    s32 ActionBarSelectedIndex;
+    ActionBarSlot ActionBarSlots[ACTION_BAR_SLOTS]; 
 } GameState;
 GameState gameState = {};
 
-void* LoadResourcesBackground(void*);
+void* LoadSoundResourcesBackground(void*);
 
 void EntitiesUpdate(f32 delta);
 
 // entities :entity
 Entity* EntitySlimeCreate(Vec2 position);
+Entity* EntitySkeletonCreate(Vec2 position);
 Entity* EntityGateCreate(Vec2 position);
+Entity* EntityCoinCreate(Vec2 position);
 
 void EntityReceiveDamage(Entity* entity, Vec2 direction, f32 knockBackAmount, f32 damage);
+void EntityJumpTo(Entity* entity, Vec2 position, f32 jumpHeight);
+void GenericOnEntityEvent(EntityId entityId, EntityEvent event);
 
 // :room
 Room* GenerateNewRoom(void);
